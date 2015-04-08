@@ -53,6 +53,19 @@ simple IDSSimpleLayer extends IDSLayer {
         double votingThreshold = default(0.5);
         
         int collectingTime @unit(s) = default(2*windowSize);
+        
+        // Parameters for additional delay detection
+        
+        bool enableDelayDetection = default(False);
+        
+        // P8: how long time a packet has to be delayed to be marked as "delayed"
+        double delayTime @unit(s) = default(5s);
+        
+        // P9: how many packets have to be delayed in a time window to be consider as "Delay attacker"
+        double delayThreshold = default(0.5);
+        
+        // P10: Size of a time window to evaluate delays
+        double delayWindowSize @unit(s) = default(30s);
                         
     	@class(IDSSimpleLayer);
     	

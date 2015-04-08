@@ -1,0 +1,21 @@
+digraph topology {
+	graph [fontsize = 12, outputorder="edgesfirst", size="14.3,14.3"];
+	node [color = "/pastel16/3", penwidth = 1];
+	edge [fontsize = 10, arrowsize = 0.5];
+	0 [label = "0", pos="0.714286,0!"]
+	1 -> 0 [color=lightgrey, arrowhead=empty, penwidth=0.5, label=""]
+	2 -> 0 [color=lightgrey, arrowhead=empty, penwidth=0.5, label=""]
+	3 -> 0 [color=lightgrey, arrowhead=empty, penwidth=0.5, label=""]
+	1 [label = "1", pos="0.714286,0.714286!"]
+	1 -> 0 [color=black, ]
+	2 -> 1 [color=lightgrey, arrowhead=empty, penwidth=0.5, label=""]
+	3 -> 1 [color=lightgrey, arrowhead=empty, penwidth=0.5, label=""]
+	2 [label = "2", pos="0.714286,1.42857!"]
+	2 -> 1 [color=black, ]
+	1 -> 2 [color=lightgrey, arrowhead=empty, penwidth=0.5, label=""]
+	3 -> 2 [color=lightgrey, arrowhead=empty, penwidth=0.5, label=""]
+	3 [label = "3", pos="0.857143,0.714286!"]
+	3 -> 2 [color=black, ]
+	1 -> 3 [color=lightgrey, arrowhead=empty, penwidth=0.5, label=""]
+	2 -> 3 [color=lightgrey, arrowhead=empty, penwidth=0.5, label=""]
+}

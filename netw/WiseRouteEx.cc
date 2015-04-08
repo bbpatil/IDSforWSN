@@ -1,0 +1,460 @@
+/***************************************************************************
+ * file:        WiseRoute.cc
+ *
+ * author:      Damien Piguet, Jerome Rousselot
+ *
+ * copyright:   (C) 2007-2008 CSEM SA, Neuchatel, Switzerland.
+ *
+ * description: Implementation of the routing protocol of WiseStack.
+ *
+ *              This program is free software; you can redistribute it
+ *              and/or modify it under the terms of the GNU General Public
+ *              License as published by the Free Software Foundation; either
+ *              version 2 of the License, or (at your option) any later
+ *              version.
+ *              For further information see file COPYING
+ *              in the top level directory
+ *
+ *
+ * Funding: This work was partially financed by the European Commission under the
+ * Framework 6 IST Project "Wirelessly Accessible Sensor Populations"
+ * (WASP) under contract IST-034963.
+ ***************************************************************************
+ * ported to Mixim 2.0.1 by Theodoros Kapourniotis
+ * last modification: 06/02/11
+ **************************************************************************/
+#include "WiseRouteEx.h"
+
+#include <limits>
+#include <algorithm>
+#include <cassert>
+
+#include "NetwControlInfo.h"
+#include "MacToNetwControlInfo.h"
+#include "ArpInterface.h"
+#include "FindModule.h"
+#include "WiseRoutePkt_m.h"
+#include "SimTracer.h"
+#include "connectionManager/ConnectionManagerAccess.h"
+
+#include "SimHelper.h"
+
+using std::make_pair;
+
+Define_Module(WiseRouteEx);
+
+void WiseRouteEx::initialize(int stage)
+{
+	BaseNetwLayer::initialize(stage);
+
+	if(stage == 1) {
+
+		EV << "!!! MARTIN: Initializing of Martin's version WiseRoute." << endl;
+
+	    EV << "Host index=" << findHost()->getIndex() << ", Id="
+		<< findHost()->getId() << endl;
+
+
+		EV << "  host IP address=" << myNetwAddr << endl;
+		EV << "  host macaddress=" << arp->getMacAddr(myNetwAddr) << endl;
+		macaddress = arp->getMacAddr(myNetwAddr);
+
+		sinkAddress = LAddress::L3Type( par("sinkAddress").longValue() ); // 0
+		headerLength = par ("headerLength");
+		rssiThreshold = par("rssiThreshold").doubleValue();
+		EV << "RSSI: " << rssiThreshold << endl;
+		rssiThreshold = FWMath::dBm2mW(rssiThreshold);
+		EV << "RSSI later: " << rssiThreshold << endl;
+		routeFloodsInterval = par("routeFloodsInterval");
+
+		stats = par("stats");
+		trace = par("trace");
+		debug = par("debug");
+		debugEV << "Debug info on network layer is on." << endl;
+		useSimTracer = par("useSimTracer");
+		floodSeqNumber = 0;
+
+		nbDataPacketsForwarded = 0;
+		nbDataPacketsReceived = 0;
+		nbDataPacketsSent = 0;
+		nbDuplicatedFloodsReceived = 0;
+		nbFloodsSent = 0;
+		nbPureUnicastSent = 0;
+		nbRouteFloodsSent = 0;
+		nbRouteFloodsReceived = 0;
+		nbUnicastFloodForwarded = 0;
+		nbPureUnicastForwarded = 0;
+		nbGetRouteFailures = 0;
+		nbRoutesRecorded = 0;
+		nbHops = 0;
+		receivedRSSI.setName("receivedRSSI");
+		routeRSSI.setName("routeRSSI");
+		allReceivedRSSI.setName("allReceivedRSSI");
+		receivedBER.setName("receivedBER");
+		routeBER.setName("routeBER");
+		allReceivedBER.setName("allReceivedBER");
+		nextHopSelectionForSink.setName("nextHopSelectionForSink");
+
+		routeFloodTimer = new cMessage("route-flood-timer", SEND_ROUTE_FLOOD_TIMER);
+		// only schedule a flood of the node is a sink!!
+		if (routeFloodsInterval > 0 && myNetwAddr==sinkAddress)
+			scheduleAt(simTime() + uniform(0.5, 1.5), routeFloodTimer);
+
+		if(useSimTracer) {
+		  // Get a handle to the tracer module
+		  tracer = FindModule<SimTracer*>::findGlobalModule(); 
+		  //const char *tracerModulePath = "sim.simTracer";
+		  //cModule *modp = simulation.getModuleByPath(tracerModulePath);
+		  //tracer = check_and_cast<SimTracer *>(modp);
+		  if (!tracer) {
+			error("No SimTracer module found, please check your ned configuration.");
+		  }
+		  // log node position
+		  //ChannelMobilityPtrType ptrMobility = ChannelMobilityAccessType().get();
+		  //if (ptrMobility) {
+		  //  Coord pos = ptrMobility->getCurrentPosition();
+		  //  tracer->logPosition(myNetwAddr, pos.x, pos.y, pos.z);
+		  //}
+		}
+	}
+}
+
+WiseRouteEx::~WiseRouteEx()
+{
+	cancelAndDelete(routeFloodTimer);
+}
+
+void WiseRouteEx::handleSelfMsg(cMessage* msg)
+{
+	if (msg->getKind() == SEND_ROUTE_FLOOD_TIMER) {
+		// Send route flood packet and restart the timer
+		WiseRoutePkt* pkt = new WiseRoutePkt("route-flood", ROUTE_FLOOD);
+		pkt->setByteLength(headerLength);
+		pkt->setInitialSrcAddr(myNetwAddr);
+		pkt->setFinalDestAddr(LAddress::L3BROADCAST);
+		pkt->setSrcAddr(myNetwAddr);
+		pkt->setDestAddr(LAddress::L3BROADCAST);
+		pkt->setNbHops(0);
+		floodTable.insert(make_pair(myNetwAddr, floodSeqNumber));
+		pkt->setSeqNum(floodSeqNumber);
+		floodSeqNumber++;
+		pkt->setIsFlood(1);
+		setDownControlInfo(pkt, LAddress::L2BROADCAST);
+		sendDown(pkt);
+		nbFloodsSent++;
+		nbRouteFloodsSent++;
+		scheduleAt(simTime() + routeFloodsInterval + uniform(0, 1), routeFloodTimer);
+	}
+	else {
+		EV << "WiseRoute - handleSelfMessage: got unexpected message of kind " << msg->getKind() << endl;
+		delete msg;
+	}
+}
+
+
+void WiseRouteEx::handleLowerMsg(cMessage* msg)
+{
+    debugEV << "Hande Lower Msg..." << endl;
+
+	WiseRoutePkt*           netwMsg        = check_and_cast<WiseRoutePkt*>(msg);
+	const LAddress::L3Type& finalDestAddr  = netwMsg->getFinalDestAddr();
+	const LAddress::L3Type& initialSrcAddr = netwMsg->getInitialSrcAddr();
+	const LAddress::L3Type& srcAddr        = netwMsg->getSrcAddr();
+	double rssi = static_cast<MacToNetwControlInfo*>(netwMsg->getControlInfo())->getRSSI();
+	double ber = static_cast<MacToNetwControlInfo*>(netwMsg->getControlInfo())->getBitErrorRate();
+	bool goodLink;
+	// Check whether the message is a flood and if it has to be forwarded.
+	//floodTypes floodType = updateFloodTable(netwMsg->getIsFlood(), initialSrcAddr, finalDestAddr,
+	//									    netwMsg->getSeqNum());
+	// Martin : we need to rebroadcast message if it is from another source
+	SimHelper* simHelper;
+	simHelper = FindModule<SimHelper*>::findGlobalModule();
+	if (rssi > rssiThreshold) {
+	    goodLink = true;
+        debugEV << "Received RSSI " << rssi << " in dBm: " << FWMath::mW2dBm(rssi) << " from " << srcAddr << " is ok." << endl;
+//        debugEV << "The distance is " << simHelper->getNodeDistance(macaddress, srcAddr) << endl;
+	} else {
+	    goodLink = false;
+	    debugEV << "Received RSSI " << rssi << " in dBm: " << FWMath::mW2dBm(rssi) << " from " << srcAddr << " is too low." << endl;
+//	    debugEV << "The distance is " << simHelper->getNodeDistance(macaddress, srcAddr) << endl;
+//	    return;
+	}
+
+	floodTypes floodType = updateFloodTable(netwMsg->getIsFlood(), initialSrcAddr, finalDestAddr,
+	                                        netwMsg->getSeqNum(), goodLink);
+//    floodTypes floodType = updateFloodTable(netwMsg->getIsFlood(), initialSrcAddr, finalDestAddr,
+//                                            netwMsg->getSeqNum(), true);
+
+
+	debugEV << "Handling lower msg, the flood type is: " << floodType << ", final destination address is: " << finalDestAddr <<
+	        ", source is: " << srcAddr << ", initial src is " << initialSrcAddr << endl;
+
+	if(trace) {
+	  allReceivedRSSI.record(rssi);
+	  allReceivedBER.record(ber);
+	}
+	if (floodType == DUPLICATE) {
+		nbDuplicatedFloodsReceived++;
+		delete netwMsg;
+	}
+	else {
+		const cObject* pCtrlInfo = NULL;
+		// If the message is a route flood, update the routing table.
+		if (netwMsg->getKind() == ROUTE_FLOOD)
+			updateRouteTable(initialSrcAddr, srcAddr, rssi, ber);
+
+		if (finalDestAddr == myNetwAddr || LAddress::isL3Broadcast(finalDestAddr)) {
+			WiseRoutePkt* msgCopy;
+			if (floodType == FORWARD && goodLink) {
+				// it's a flood. copy for delivery, forward original.
+				// if we are here (see updateFloodTable()), finalDestAddr == IP Broadcast. Hence finalDestAddr,
+				// initialSrcAddr, and destAddr have already been correctly set
+				// at origin, as well as the MAC control info. Hence only update
+				// local hop source address.
+			    debugEV << "The message should be forwarded !!! \n\n\n" << endl;
+				msgCopy = check_and_cast<WiseRoutePkt*>(netwMsg->dup());
+				netwMsg->setSrcAddr(myNetwAddr);
+				pCtrlInfo = netwMsg->removeControlInfo();
+				setDownControlInfo(netwMsg, LAddress::L2BROADCAST);
+				netwMsg->setNbHops(netwMsg->getNbHops()+1);
+				//Martin
+//				if (myNetwAddr == 1)
+				sendDown(netwMsg);
+				nbDataPacketsForwarded++;
+				debugEV << "Forwarded case 1" << endl;
+			}
+			else
+				msgCopy = netwMsg;
+			if (msgCopy->getKind() == DATA) {
+				sendUp(decapsMsg(msgCopy));
+				nbDataPacketsReceived++;
+			}
+			else {
+				nbRouteFloodsReceived++;
+				delete msgCopy;
+			}
+		}
+		else {
+			// not for me. if flood, forward as flood. else select a route
+			if (floodType == FORWARD && goodLink) {
+				netwMsg->setSrcAddr(myNetwAddr);
+				pCtrlInfo = netwMsg->removeControlInfo();
+				setDownControlInfo(netwMsg, LAddress::L2BROADCAST);
+				netwMsg->setNbHops(netwMsg->getNbHops()+1);
+				sendDown(netwMsg);
+				nbDataPacketsForwarded++;
+				nbUnicastFloodForwarded++;
+				debugEV << "Forwarded case 2" << endl;
+			}
+			else {
+				LAddress::L3Type nextHop = getRoute(finalDestAddr);
+				if (LAddress::isL3Broadcast(nextHop)) {
+					// no route exist to destination, attempt to send to final destination
+					nextHop = finalDestAddr;
+					nbGetRouteFailures++;
+				}
+				netwMsg->setSrcAddr(myNetwAddr);
+				netwMsg->setDestAddr(nextHop);
+				pCtrlInfo = netwMsg->removeControlInfo();
+				setDownControlInfo(netwMsg, arp->getMacAddr(nextHop));
+				netwMsg->setNbHops(netwMsg->getNbHops()+1);
+				sendDown(netwMsg);
+				nbDataPacketsForwarded++;
+				nbPureUnicastForwarded++;
+				debugEV << "Forwarded case 3" << endl;
+			}
+		}
+		if (pCtrlInfo != NULL)
+			delete pCtrlInfo;
+	}
+}
+
+void WiseRouteEx::handleLowerControl(cMessage *msg)
+{
+    delete msg;
+}
+
+void WiseRouteEx::handleUpperMsg(cMessage* msg)
+{
+	LAddress::L3Type finalDestAddr;
+	LAddress::L3Type nextHopAddr;
+	LAddress::L2Type nextHopMacAddr;
+	WiseRoutePkt*    pkt   = new WiseRoutePkt(msg->getName(), DATA);
+	cObject*         cInfo = msg->removeControlInfo();
+
+	pkt->setByteLength(headerLength);
+
+	if ( cInfo == NULL ) {
+	    EV << "WiseRoute warning: Application layer did not specifiy a destination L3 address\n"
+	       << "\tusing broadcast address instead\n";
+	    finalDestAddr = LAddress::L3BROADCAST;
+	}
+	else {
+		EV <<"WiseRoute: CInfo removed, netw addr="<< NetwControlInfo::getAddressFromControlInfo( cInfo ) <<endl;
+		finalDestAddr = NetwControlInfo::getAddressFromControlInfo( cInfo );
+		delete cInfo;
+	}
+
+	pkt->setFinalDestAddr(finalDestAddr);
+	pkt->setInitialSrcAddr(myNetwAddr);
+	pkt->setSrcAddr(myNetwAddr);
+	pkt->setNbHops(0);
+
+	if (LAddress::isL3Broadcast(finalDestAddr))
+		nextHopAddr = LAddress::L3BROADCAST;
+	else
+		nextHopAddr = getRoute(finalDestAddr, true);
+	pkt->setDestAddr(nextHopAddr);
+	if (LAddress::isL3Broadcast(nextHopAddr)) {
+		// it's a flood.
+		nextHopMacAddr = LAddress::L2BROADCAST;
+		pkt->setIsFlood(1);
+		nbFloodsSent++;
+		// record flood in flood table
+		floodTable.insert(make_pair(myNetwAddr, floodSeqNumber));
+		pkt->setSeqNum(floodSeqNumber);
+		floodSeqNumber++;
+		nbGetRouteFailures++;
+	}
+	else {
+		pkt->setIsFlood(0);
+		nbPureUnicastSent++;
+		nextHopMacAddr = arp->getMacAddr(nextHopAddr);
+	}
+	setDownControlInfo(pkt, nextHopMacAddr);
+	assert(static_cast<cPacket*>(msg));
+	pkt->encapsulate(static_cast<cPacket*>(msg));
+	sendDown(pkt);
+	nbDataPacketsSent++;
+}
+
+void WiseRouteEx::finish()
+{
+	if (stats) {
+		recordScalar("nbDataPacketsForwarded", nbDataPacketsForwarded);
+		recordScalar("nbDataPacketsReceived", nbDataPacketsReceived);
+		recordScalar("nbDataPacketsSent", nbDataPacketsSent);
+		recordScalar("nbDuplicatedFloodsReceived", nbDuplicatedFloodsReceived);
+		recordScalar("nbFloodsSent", nbFloodsSent);
+		recordScalar("nbPureUnicastSent", nbPureUnicastSent);
+		recordScalar("nbRouteFloodsSent", nbRouteFloodsSent);
+		recordScalar("nbRouteFloodsReceived", nbRouteFloodsReceived);
+		recordScalar("nbUnicastFloodForwarded", nbUnicastFloodForwarded);
+		recordScalar("nbPureUnicastForwarded", nbPureUnicastForwarded);
+		recordScalar("nbGetRouteFailures", nbGetRouteFailures);
+		recordScalar("nbRoutesRecorded", nbRoutesRecorded);
+		recordScalar("meanNbHops", (double) nbHops / (double) nbDataPacketsReceived);
+	}
+	BaseNetwLayer::finish();
+}
+
+void WiseRouteEx::updateRouteTable(const LAddress::L3Type& origin, const LAddress::L3Type& lastHop, double rssi, double ber)
+{
+    debugEV << "Received RSSI is " << FWMath::mW2dBm(rssi) << " and threshold is " << FWMath::mW2dBm(rssiThreshold) << endl;
+    debugEV << "!!!!!!!!!!!!!!!! \n\n\n\n Received RSSI is " << rssi << " and threshold is " << rssiThreshold << "\n\n\n" << endl;
+	tRouteTable::iterator pos;
+
+	pos = routeTable.find(origin);
+	if(trace) {
+	  receivedRSSI.record(rssi);
+	  receivedBER.record(ber);
+	}
+	if (pos == routeTable.end()) {
+		// A route towards origin does not exist yet. Insert the currently discovered one
+		// only if the received RSSI is above the threshold.
+		if (rssi > rssiThreshold) {
+			tRouteTableEntry newEntry;
+
+			// last hop from origin means next hop towards origin.
+			newEntry.nextHop = lastHop;
+			newEntry.rssi = rssi;
+			if(trace) {
+			  routeRSSI.record(rssi);
+			  routeBER.record(ber);
+			}
+			routeTable.insert(make_pair(origin, newEntry));
+			if(useSimTracer) {
+			  tracer->logLink(myNetwAddr, lastHop);
+			}
+			nbRoutesRecorded++;
+			if (origin == LAddress::L3NULL && trace) {
+				nextHopSelectionForSink.record(static_cast<double>(lastHop));
+			}
+		}
+	}
+	else {
+		// A route towards the node which originated the received packet already exists.
+		// Replace its entry only if the route proposal that we just received has a stronger
+		// RSSI.
+
+	    // Martin: TODO uncomment?
+
+		tRouteTableEntry entry = pos->second;
+		if (entry.rssi > rssiThreshold) {
+			entry.nextHop = lastHop;
+			entry.rssi = rssi;
+			if (origin == 0)
+				nextHopSelectionForSink.record(lastHop);
+		}
+	}
+}
+
+cMessage* WiseRouteEx::decapsMsg(WiseRoutePkt *msg)
+{
+	cMessage *m = msg->decapsulate();
+	setUpControlInfo(m, msg->getSrcAddr());
+	nbHops = nbHops + msg->getNbHops();
+	// delete the netw packet
+	delete msg;
+	return m;
+}
+
+WiseRouteEx::floodTypes WiseRouteEx::updateFloodTable(bool isFlood, const tFloodTable::key_type& srcAddr, const tFloodTable::key_type& destAddr, unsigned long seqNum, bool goodLink)
+{
+	if (isFlood) {
+		tFloodTable::iterator pos = floodTable.lower_bound(srcAddr);
+		tFloodTable::iterator posEnd = floodTable.upper_bound(srcAddr);
+
+		while (pos != posEnd) {
+			if (seqNum == pos->second) {
+			    debugEV << "Duplicated flooding" << endl;
+				return DUPLICATE;  // this flood is known, don't forward it.
+			}
+			    // Martin: Ok, but if we do not have a parent node, we need to rebroadcast!
+			    //return FORWARD;
+			++pos;
+		}
+		// Martin: insert if only the rssi was higher than rssi threshold and it was considered as good link
+		if (goodLink == true) {
+		    floodTable.insert(make_pair(srcAddr, seqNum));
+		    debugEV << "Inserted into flooding table" << endl;
+		}
+		if (destAddr == myNetwAddr)
+			return FORME;
+		else
+			return FORWARD;
+	}
+	else
+		return NOTAFLOOD;
+}
+
+WiseRouteEx::tFloodTable::key_type WiseRouteEx::getRoute(const tFloodTable::key_type& destAddr, bool /*iAmOrigin*/) const
+{
+	// Find a route to dest address. As in the embedded code, if no route exists, indicate
+	// final destination as next hop. If we'are lucky, final destination is one hop away...
+	// If I am the origin of the packet and no route exists, use flood, hence return broadcast
+	// address for next hop.
+	tRouteTable::const_iterator pos = routeTable.find(destAddr);
+	if (pos != routeTable.end())
+		return pos->second.nextHop;
+	else
+		return LAddress::L3BROADCAST;
+}
+
+int WiseRouteEx::getNextHopAddr(){
+    tRouteTable::const_iterator pos = routeTable.find(0);
+    if (pos != routeTable.end())
+        return pos->second.nextHop;
+    else
+        return LAddress::L3BROADCAST;
+}

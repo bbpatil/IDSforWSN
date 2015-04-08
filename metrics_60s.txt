@@ -1,0 +1,9 @@
+[RESULTS]
+GenerationNumber = 0
+IndividualNumber = 0
+NumberOfNodes = 251
+FN = 0.07692307692
+FP = 0.1438988077
+MEM = 512
+Node 108 detected as attacker = 12
+Node 108 detected as non-attacker = 1

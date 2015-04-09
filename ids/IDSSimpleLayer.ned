@@ -56,7 +56,7 @@ simple IDSSimpleLayer extends IDSLayer {
         
         // Parameters for additional delay detection
         
-        bool enableDelayDetection = default(False);
+        bool enableDelayDetection = default(True);
         
         // P8: how long time a packet has to be delayed to be marked as "delayed"
         double delayTime @unit(s) = default(5s);

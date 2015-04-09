@@ -67,6 +67,15 @@ void IDSSimpleLayer::initialize(int stage){
 		minVotesReceived = par("minVotesReceived");
 		votingThreshold = par("votingThreshold").doubleValue();
 
+		// Delay attack parameters
+		bool enableDelayDetection = par("enableDelayDetection");
+		// P8: how long time a packet has to be delayed to be marked as "delayed"
+        double delayTime = par("delayTime");
+        // P9: how many packets have to be delayed in a time window to be consider as "Delay attacker"
+        double delayThreshold = par("delayThreshold");
+        // P10: Size of a time window to evaluate delays
+        double delayWindowSize = par("delayWindowSize");
+
 		// Start the timer for window size:
 		idsWindowTimer = new cMessage("ids-window-timer", IDS_WINDOW_TIMER);
 		// Once the first window is over, we utilize only partial information from such shorter window
@@ -338,6 +347,7 @@ void IDSSimpleLayer::analyseNetwPkt(StaticNetwPkt* netwPkt){
 					fwdEntry.destAddr = netwPkt->getFinalDestAddr();
 					fwdEntry.nodeAddr = netwPkt->getDestAddr();
 					fwdEntry.creationTime = netwPkt->getCreationTime().raw();
+					fwdEntry.delayTime = simTime() + SimTime(delayTime);
 					fwdBuffer.push_back(fwdEntry);
 
 					// increment PR

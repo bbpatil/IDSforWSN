@@ -55,11 +55,15 @@ struct IDSEntry {
 
 	bool isWaitingForResponses;
 
+	// Values for delay dropper
+	unsigned int delayedPacketsLastWindow, notDelayedPacketsLastWindow;
+
 	IDSEntry(){
 		packetsReceived = packetsForwarded = packetsLastWindowReceived = packetsLastWindowForwarded = lastCreationTime = lastSrcAddr = 0;
 		positiveResponses = negativeResponses = 0;
 		isDropperLocal = isDropperGlobal = false;
 		isWaitingForResponses = false;
+		delayedPacketsLastWindow = notDelayedPacketsLastWindow = 0;
 	}
 	double getPacketsDroppedRatio(){
 		return packetsReceived>0?(packetsReceived-packetsForwarded)/(double)packetsReceived:0;
@@ -79,6 +83,8 @@ struct FwdEntry {
 	int destAddr;
 	int nodeAddr;
 	int64 creationTime;
+
+	simtime_t delayTime;
 
 	simtime_t timeout;
 
@@ -191,6 +197,14 @@ public:
 	unsigned int windowSize;
 	unsigned int minVotesReceived;
 	double votingThreshold;
+
+	// Delay attack parameters:
+    // P8: how long time a packet has to be delayed to be marked as "delayed"
+    double delayTime;
+    // P9: how many packets have to be delayed in a time window to be consider as "Delay attacker"
+    double delayThreshold;
+    // P10: Size of a time window to evaluate delays
+    double delayWindowSize;
 
 };
 

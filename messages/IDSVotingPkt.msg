@@ -10,4 +10,5 @@ packet IDSVotingPkt
     LAddress::L3Type destAddr;   // destination address
     LAddress::L3Type srcAddr;    // source address
 	int              nodeID;
+	bool             delayAttack;
 }

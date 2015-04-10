@@ -58,12 +58,16 @@ struct IDSEntry {
 	// Values for delay dropper
 	unsigned int delayedPacketsLastWindow, notDelayedPacketsLastWindow;
 
+	// This is to make own claim about a node's delay:
+	bool isDelayerLocal, isDelayerGlobal;
+
 	IDSEntry(){
 		packetsReceived = packetsForwarded = packetsLastWindowReceived = packetsLastWindowForwarded = lastCreationTime = lastSrcAddr = 0;
 		positiveResponses = negativeResponses = 0;
 		isDropperLocal = isDropperGlobal = false;
 		isWaitingForResponses = false;
 		delayedPacketsLastWindow = notDelayedPacketsLastWindow = 0;
+		isDelayerLocal = isDelayerGlobal = false;
 	}
 	double getPacketsDroppedRatio(){
 		return packetsReceived>0?(packetsReceived-packetsForwarded)/(double)packetsReceived:0;
@@ -71,6 +75,10 @@ struct IDSEntry {
 
     double getPacketsLastWindowDroppedRatio(){
         return packetsLastWindowReceived>0?(packetsLastWindowReceived-packetsLastWindowForwarded)/(double)packetsLastWindowReceived:0;
+    }
+
+    double getDelayLastWindowDroppedRatio(){
+        return packetsLastWindowReceived>0?(delayedPacketsLastWindow)/(double)(delayedPacketsLastWindow+notDelayedPacketsLastWindow):0;
     }
 };
 typedef std::map<int, IDSEntry> IDSMap;
@@ -88,8 +96,11 @@ struct FwdEntry {
 
 	simtime_t timeout;
 
+	bool markedAsDelayed;
+
 	FwdEntry(){
 		srcAddr = destAddr = nodeAddr = creationTime = -1;
+		markedAsDelayed = false;
 	}
 };
 
@@ -174,7 +185,7 @@ public:
 	virtual ~IDSSimpleLayer();
 	void evaluateLastWindow();
 	void resetWindowValues();
-	void askNeighborsForDropping(int nodeID);
+	void askNeighborsForDropping(int nodeID, bool delayAttack);
 	void votingResponse(IDSVotingPkt* idsPkt);
 	void recordResponse(IDSVotingResponsePkt* idsResponsePkt);
 	void responseVotingRequests();
@@ -199,12 +210,13 @@ public:
 	double votingThreshold;
 
 	// Delay attack parameters:
+	bool enabledDelayDetection;
     // P8: how long time a packet has to be delayed to be marked as "delayed"
     double delayTime;
     // P9: how many packets have to be delayed in a time window to be consider as "Delay attacker"
     double delayThreshold;
-    // P10: Size of a time window to evaluate delays
-    double delayWindowSize;
+    // P10: Size of a time window to evaluate delays -> not used now
+    // double delayWindowSize;
 
 };
 

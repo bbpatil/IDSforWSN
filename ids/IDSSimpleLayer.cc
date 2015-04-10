@@ -68,13 +68,13 @@ void IDSSimpleLayer::initialize(int stage){
 		votingThreshold = par("votingThreshold").doubleValue();
 
 		// Delay attack parameters
-		bool enableDelayDetection = par("enableDelayDetection");
+		enabledDelayDetection = par("enabledDelayDetection");
 		// P8: how long time a packet has to be delayed to be marked as "delayed"
-        double delayTime = par("delayTime");
+        delayTime = par("delayTime");
         // P9: how many packets have to be delayed in a time window to be consider as "Delay attacker"
-        double delayThreshold = par("delayThreshold");
-        // P10: Size of a time window to evaluate delays
-        double delayWindowSize = par("delayWindowSize");
+        delayThreshold = par("delayThreshold");
+        // P10: Size of a time window to evaluate delays -> not used
+        //delayWindowSize = par("delayWindowSize");
 
 		// Start the timer for window size:
 		idsWindowTimer = new cMessage("ids-window-timer", IDS_WINDOW_TIMER);
@@ -283,6 +283,18 @@ void IDSSimpleLayer::analyseNetwPkt(StaticNetwPkt* netwPkt){
 						// increment last window forwarding
 						forwardersMap[netwPkt->getSrcAddr()].packetsLastWindowForwarded++;
 
+						// Evaluate whether this packet was sent with a delay:
+						if (enabledDelayDetection) {
+						    // Check whether this packet was sent in time
+						    if (entry->delayTime > simTime()) {
+						        // Packet was not sent before deadline
+						        forwardersMap[netwPkt->getSrcAddr()].delayedPacketsLastWindow++;
+						    } else {
+						        // Packet was sent before deadlnie
+						        forwardersMap[netwPkt->getSrcAddr()].notDelayedPacketsLastWindow++;
+						    }
+						}
+
 						debugEV<< "Packet removed from fwdBuffer" << endl;
 
 						fwdBuffer.erase(entry);
@@ -347,6 +359,7 @@ void IDSSimpleLayer::analyseNetwPkt(StaticNetwPkt* netwPkt){
 					fwdEntry.destAddr = netwPkt->getFinalDestAddr();
 					fwdEntry.nodeAddr = netwPkt->getDestAddr();
 					fwdEntry.creationTime = netwPkt->getCreationTime().raw();
+					// To detect delay attack:
 					fwdEntry.delayTime = simTime() + SimTime(delayTime);
 					fwdBuffer.push_back(fwdEntry);
 
@@ -446,6 +459,11 @@ void IDSSimpleLayer::evaluateLastWindow() {
     // Our window is over -> response to pending requests
     responseVotingRequests();
 
+    // If delay attack is evaluated, check all the packets in the buffer whether they are delayed or not
+    if (enabledDelayDetection) {
+        // TODO: Check the buffer for delayed packets and increment potential delays for all the neighbors
+    }
+
     // The evaluation should be done for all monitored neighbors
     debugEV << "Going to evaluate all monitored neighbors, the number of them is " << forwardersMap.size() << endl;
     for (IDSMap::iterator i=forwardersMap.begin();i!=forwardersMap.end();i++){
@@ -464,9 +482,25 @@ void IDSSimpleLayer::evaluateLastWindow() {
             // Start the voting scheme if not yet considered dropper:
             if (!entry->isDropperGlobal) {
                 debugEV << "Node is not globally decided as dropper yet. Voting." << endl;
-                askNeighborsForDropping(nodeAddr);
+                askNeighborsForDropping(nodeAddr, false);
             } else {
                 debugEV << "Node is already globally decided as dropper. No voting." << endl;
+            }
+
+        // If the node is not a dropper and delay attack detection is enabled, evaluate the ratio of delayed packets
+        } else if (enabledDelayDetection) {
+            if (entry->getDelayLastWindowDroppedRatio() > delayThreshold) {
+                debugEV << "Node " << nodeAddr << " dealyed " << entry->getDelayLastWindowDroppedRatio()*100 <<
+                        " % packets. There is an assumption that it is a dropper => voting scheme?" << endl;
+                // Since now we locally assume this node as delayer:
+                entry->isDelayerLocal = true;
+                if (!entry->isDelayerGlobal) {
+                    debugEV << "Node is not globally decided as dropper yet. Voting." << endl;
+                    askNeighborsForDropping(nodeAddr, true);
+                } else {
+                    debugEV << "Node is already globally decided as dropper. No voting." << endl;
+                }
+                // TODO
             }
         }
 
@@ -510,7 +544,7 @@ void IDSSimpleLayer::responseVotingRequests() {
 /**
  * There is an assumption that node is dropper -> here the neighbors are being asked for their claim
  */
-void IDSSimpleLayer::askNeighborsForDropping(int nodeAddr) {
+void IDSSimpleLayer::askNeighborsForDropping(int nodeAddr, bool delayAttack) {
 
     if (forwardersMap[nodeAddr].isWaitingForResponses == true) {
         debugEV << "Already waiting for responses from another window" << endl;
@@ -525,6 +559,12 @@ void IDSSimpleLayer::askNeighborsForDropping(int nodeAddr) {
     idsPkt->setDestAddr(LAddress::L3BROADCAST);
     idsPkt->setSrcAddr(net->getNetwAddr());
     idsPkt->setNodeID(nodeAddr);
+    // Delay attack:
+    if(delayAttack) {
+        idsPkt->setDelayAttack(true);
+    } else {
+        idsPkt->setDelayAttack(false);
+    }
     NetwControlInfo::setControlInfo(idsPkt, idsPkt->getDestAddr());
 
     send(idsPkt, idsSenderControlOut);
@@ -549,6 +589,10 @@ void IDSSimpleLayer::resetWindowValues() {
         debugEV << "Window records of node " << nodeAddr << " are reset." << endl;
         entry->packetsLastWindowForwarded = 0;
         entry->packetsLastWindowReceived = 0;
+
+        // Delay attack
+        entry->delayedPacketsLastWindow = 0;
+        entry->notDelayedPacketsLastWindow = 0;
 
     }
 }

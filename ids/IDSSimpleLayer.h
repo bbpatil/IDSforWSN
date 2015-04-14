@@ -61,6 +61,8 @@ struct IDSEntry {
 	// This is to make own claim about a node's delay:
 	bool isDelayerLocal, isDelayerGlobal;
 
+    bool isWaitingForDelayResponses;
+
 	IDSEntry(){
 		packetsReceived = packetsForwarded = packetsLastWindowReceived = packetsLastWindowForwarded = lastCreationTime = lastSrcAddr = 0;
 		positiveResponses = negativeResponses = 0;
@@ -68,6 +70,7 @@ struct IDSEntry {
 		isWaitingForResponses = false;
 		delayedPacketsLastWindow = notDelayedPacketsLastWindow = 0;
 		isDelayerLocal = isDelayerGlobal = false;
+		isWaitingForDelayResponses = false;
 	}
 	double getPacketsDroppedRatio(){
 		return packetsReceived>0?(packetsReceived-packetsForwarded)/(double)packetsReceived:0;
@@ -151,7 +154,8 @@ protected:
 
     enum messagesTypes {
         IDS_WINDOW_TIMER=0,
-        IDS_RESPONSES_COLLECTION_TIMER=1
+        IDS_RESPONSES_COLLECTION_TIMER=1,
+        IDS_DELAY_RESPONSES_COLLECTION_TIMER=2
     };
 
 	bool evaluated;
@@ -174,6 +178,7 @@ protected:
 
 	cMessage* idsWindowTimer;
 	cMessage* idsResponsesCollectionTimer;
+	cMessage* idsDelayResponsesCollectionTimer;
 
 	// Gate for communication with IDS sender
 	int idsSenderControlOut;
@@ -185,11 +190,13 @@ public:
 	virtual ~IDSSimpleLayer();
 	void evaluateLastWindow();
 	void resetWindowValues();
-	void askNeighborsForDropping(int nodeID, bool delayAttack);
+	void askNeighborsForDropping(int nodeID);
+	void askNeighborsForDelay(int nodeID);
 	void votingResponse(IDSVotingPkt* idsPkt);
 	void recordResponse(IDSVotingResponsePkt* idsResponsePkt);
 	void responseVotingRequests();
 	void evaluateResponses(int nodeID);
+	void checkBufferForDelays();
 
 	IDSStats forwardersStats;
 	IDSMap forwardersMap;

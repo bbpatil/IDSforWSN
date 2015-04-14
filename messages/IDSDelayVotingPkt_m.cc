@@ -1,5 +1,5 @@
 //
-// Generated file, do not edit! Created by opp_msgc 4.3 from messages/IDSVotingPkt.msg.
+// Generated file, do not edit! Created by opp_msgc 4.3 from messages/IDSDelayVotingPkt.msg.
 //
 
 // Disable warnings about unused variables, empty switch stmts, etc:
@@ -10,7 +10,7 @@
 
 #include <iostream>
 #include <sstream>
-#include "IDSVotingPkt_m.h"
+#include "IDSDelayVotingPkt_m.h"
 
 // Template rule which fires if a struct or class doesn't have operator<<
 template<typename T>
@@ -30,23 +30,24 @@ void doUnpacking(cCommBuffer *, T& t) {
 
 
 
-Register_Class(IDSVotingPkt);
+Register_Class(IDSDelayVotingPkt);
 
-IDSVotingPkt::IDSVotingPkt(const char *name, int kind) : cPacket(name,kind)
+IDSDelayVotingPkt::IDSDelayVotingPkt(const char *name, int kind) : cPacket(name,kind)
 {
     this->nodeID_var = 0;
+    this->delayAttack_var = 0;
 }
 
-IDSVotingPkt::IDSVotingPkt(const IDSVotingPkt& other) : cPacket(other)
+IDSDelayVotingPkt::IDSDelayVotingPkt(const IDSDelayVotingPkt& other) : cPacket(other)
 {
     copy(other);
 }
 
-IDSVotingPkt::~IDSVotingPkt()
+IDSDelayVotingPkt::~IDSDelayVotingPkt()
 {
 }
 
-IDSVotingPkt& IDSVotingPkt::operator=(const IDSVotingPkt& other)
+IDSDelayVotingPkt& IDSDelayVotingPkt::operator=(const IDSDelayVotingPkt& other)
 {
     if (this==&other) return *this;
     cPacket::operator=(other);
@@ -54,64 +55,77 @@ IDSVotingPkt& IDSVotingPkt::operator=(const IDSVotingPkt& other)
     return *this;
 }
 
-void IDSVotingPkt::copy(const IDSVotingPkt& other)
+void IDSDelayVotingPkt::copy(const IDSDelayVotingPkt& other)
 {
     this->destAddr_var = other.destAddr_var;
     this->srcAddr_var = other.srcAddr_var;
     this->nodeID_var = other.nodeID_var;
+    this->delayAttack_var = other.delayAttack_var;
 }
 
-void IDSVotingPkt::parsimPack(cCommBuffer *b)
+void IDSDelayVotingPkt::parsimPack(cCommBuffer *b)
 {
     cPacket::parsimPack(b);
     doPacking(b,this->destAddr_var);
     doPacking(b,this->srcAddr_var);
     doPacking(b,this->nodeID_var);
+    doPacking(b,this->delayAttack_var);
 }
 
-void IDSVotingPkt::parsimUnpack(cCommBuffer *b)
+void IDSDelayVotingPkt::parsimUnpack(cCommBuffer *b)
 {
     cPacket::parsimUnpack(b);
     doUnpacking(b,this->destAddr_var);
     doUnpacking(b,this->srcAddr_var);
     doUnpacking(b,this->nodeID_var);
+    doUnpacking(b,this->delayAttack_var);
 }
 
-LAddress::L3Type& IDSVotingPkt::getDestAddr()
+LAddress::L3Type& IDSDelayVotingPkt::getDestAddr()
 {
     return destAddr_var;
 }
 
-void IDSVotingPkt::setDestAddr(const LAddress::L3Type& destAddr)
+void IDSDelayVotingPkt::setDestAddr(const LAddress::L3Type& destAddr)
 {
     this->destAddr_var = destAddr;
 }
 
-LAddress::L3Type& IDSVotingPkt::getSrcAddr()
+LAddress::L3Type& IDSDelayVotingPkt::getSrcAddr()
 {
     return srcAddr_var;
 }
 
-void IDSVotingPkt::setSrcAddr(const LAddress::L3Type& srcAddr)
+void IDSDelayVotingPkt::setSrcAddr(const LAddress::L3Type& srcAddr)
 {
     this->srcAddr_var = srcAddr;
 }
 
-int IDSVotingPkt::getNodeID() const
+int IDSDelayVotingPkt::getNodeID() const
 {
     return nodeID_var;
 }
 
-void IDSVotingPkt::setNodeID(int nodeID)
+void IDSDelayVotingPkt::setNodeID(int nodeID)
 {
     this->nodeID_var = nodeID;
 }
 
-class IDSVotingPktDescriptor : public cClassDescriptor
+bool IDSDelayVotingPkt::getDelayAttack() const
+{
+    return delayAttack_var;
+}
+
+void IDSDelayVotingPkt::setDelayAttack(bool delayAttack)
+{
+    this->delayAttack_var = delayAttack;
+}
+
+class IDSDelayVotingPktDescriptor : public cClassDescriptor
 {
   public:
-    IDSVotingPktDescriptor();
-    virtual ~IDSVotingPktDescriptor();
+    IDSDelayVotingPktDescriptor();
+    virtual ~IDSDelayVotingPktDescriptor();
 
     virtual bool doesSupport(cObject *obj) const;
     virtual const char *getProperty(const char *propertyname) const;
@@ -130,34 +144,34 @@ class IDSVotingPktDescriptor : public cClassDescriptor
     virtual void *getFieldStructPointer(void *object, int field, int i) const;
 };
 
-Register_ClassDescriptor(IDSVotingPktDescriptor);
+Register_ClassDescriptor(IDSDelayVotingPktDescriptor);
 
-IDSVotingPktDescriptor::IDSVotingPktDescriptor() : cClassDescriptor("IDSVotingPkt", "cPacket")
+IDSDelayVotingPktDescriptor::IDSDelayVotingPktDescriptor() : cClassDescriptor("IDSDelayVotingPkt", "cPacket")
 {
 }
 
-IDSVotingPktDescriptor::~IDSVotingPktDescriptor()
+IDSDelayVotingPktDescriptor::~IDSDelayVotingPktDescriptor()
 {
 }
 
-bool IDSVotingPktDescriptor::doesSupport(cObject *obj) const
+bool IDSDelayVotingPktDescriptor::doesSupport(cObject *obj) const
 {
-    return dynamic_cast<IDSVotingPkt *>(obj)!=NULL;
+    return dynamic_cast<IDSDelayVotingPkt *>(obj)!=NULL;
 }
 
-const char *IDSVotingPktDescriptor::getProperty(const char *propertyname) const
+const char *IDSDelayVotingPktDescriptor::getProperty(const char *propertyname) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
     return basedesc ? basedesc->getProperty(propertyname) : NULL;
 }
 
-int IDSVotingPktDescriptor::getFieldCount(void *object) const
+int IDSDelayVotingPktDescriptor::getFieldCount(void *object) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
-    return basedesc ? 3+basedesc->getFieldCount(object) : 3;
+    return basedesc ? 4+basedesc->getFieldCount(object) : 4;
 }
 
-unsigned int IDSVotingPktDescriptor::getFieldTypeFlags(void *object, int field) const
+unsigned int IDSDelayVotingPktDescriptor::getFieldTypeFlags(void *object, int field) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
     if (basedesc) {
@@ -169,11 +183,12 @@ unsigned int IDSVotingPktDescriptor::getFieldTypeFlags(void *object, int field) 
         FD_ISCOMPOUND,
         FD_ISCOMPOUND,
         FD_ISEDITABLE,
+        FD_ISEDITABLE,
     };
-    return (field>=0 && field<3) ? fieldTypeFlags[field] : 0;
+    return (field>=0 && field<4) ? fieldTypeFlags[field] : 0;
 }
 
-const char *IDSVotingPktDescriptor::getFieldName(void *object, int field) const
+const char *IDSDelayVotingPktDescriptor::getFieldName(void *object, int field) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
     if (basedesc) {
@@ -185,21 +200,23 @@ const char *IDSVotingPktDescriptor::getFieldName(void *object, int field) const
         "destAddr",
         "srcAddr",
         "nodeID",
+        "delayAttack",
     };
-    return (field>=0 && field<3) ? fieldNames[field] : NULL;
+    return (field>=0 && field<4) ? fieldNames[field] : NULL;
 }
 
-int IDSVotingPktDescriptor::findField(void *object, const char *fieldName) const
+int IDSDelayVotingPktDescriptor::findField(void *object, const char *fieldName) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
     int base = basedesc ? basedesc->getFieldCount(object) : 0;
     if (fieldName[0]=='d' && strcmp(fieldName, "destAddr")==0) return base+0;
     if (fieldName[0]=='s' && strcmp(fieldName, "srcAddr")==0) return base+1;
     if (fieldName[0]=='n' && strcmp(fieldName, "nodeID")==0) return base+2;
+    if (fieldName[0]=='d' && strcmp(fieldName, "delayAttack")==0) return base+3;
     return basedesc ? basedesc->findField(object, fieldName) : -1;
 }
 
-const char *IDSVotingPktDescriptor::getFieldTypeString(void *object, int field) const
+const char *IDSDelayVotingPktDescriptor::getFieldTypeString(void *object, int field) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
     if (basedesc) {
@@ -211,11 +228,12 @@ const char *IDSVotingPktDescriptor::getFieldTypeString(void *object, int field) 
         "LAddress::L3Type",
         "LAddress::L3Type",
         "int",
+        "bool",
     };
-    return (field>=0 && field<3) ? fieldTypeStrings[field] : NULL;
+    return (field>=0 && field<4) ? fieldTypeStrings[field] : NULL;
 }
 
-const char *IDSVotingPktDescriptor::getFieldProperty(void *object, int field, const char *propertyname) const
+const char *IDSDelayVotingPktDescriptor::getFieldProperty(void *object, int field, const char *propertyname) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
     if (basedesc) {
@@ -228,7 +246,7 @@ const char *IDSVotingPktDescriptor::getFieldProperty(void *object, int field, co
     }
 }
 
-int IDSVotingPktDescriptor::getArraySize(void *object, int field) const
+int IDSDelayVotingPktDescriptor::getArraySize(void *object, int field) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
     if (basedesc) {
@@ -236,13 +254,13 @@ int IDSVotingPktDescriptor::getArraySize(void *object, int field) const
             return basedesc->getArraySize(object, field);
         field -= basedesc->getFieldCount(object);
     }
-    IDSVotingPkt *pp = (IDSVotingPkt *)object; (void)pp;
+    IDSDelayVotingPkt *pp = (IDSDelayVotingPkt *)object; (void)pp;
     switch (field) {
         default: return 0;
     }
 }
 
-std::string IDSVotingPktDescriptor::getFieldAsString(void *object, int field, int i) const
+std::string IDSDelayVotingPktDescriptor::getFieldAsString(void *object, int field, int i) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
     if (basedesc) {
@@ -250,16 +268,17 @@ std::string IDSVotingPktDescriptor::getFieldAsString(void *object, int field, in
             return basedesc->getFieldAsString(object,field,i);
         field -= basedesc->getFieldCount(object);
     }
-    IDSVotingPkt *pp = (IDSVotingPkt *)object; (void)pp;
+    IDSDelayVotingPkt *pp = (IDSDelayVotingPkt *)object; (void)pp;
     switch (field) {
         case 0: {std::stringstream out; out << pp->getDestAddr(); return out.str();}
         case 1: {std::stringstream out; out << pp->getSrcAddr(); return out.str();}
         case 2: return long2string(pp->getNodeID());
+        case 3: return bool2string(pp->getDelayAttack());
         default: return "";
     }
 }
 
-bool IDSVotingPktDescriptor::setFieldAsString(void *object, int field, int i, const char *value) const
+bool IDSDelayVotingPktDescriptor::setFieldAsString(void *object, int field, int i, const char *value) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
     if (basedesc) {
@@ -267,14 +286,15 @@ bool IDSVotingPktDescriptor::setFieldAsString(void *object, int field, int i, co
             return basedesc->setFieldAsString(object,field,i,value);
         field -= basedesc->getFieldCount(object);
     }
-    IDSVotingPkt *pp = (IDSVotingPkt *)object; (void)pp;
+    IDSDelayVotingPkt *pp = (IDSDelayVotingPkt *)object; (void)pp;
     switch (field) {
         case 2: pp->setNodeID(string2long(value)); return true;
+        case 3: pp->setDelayAttack(string2bool(value)); return true;
         default: return false;
     }
 }
 
-const char *IDSVotingPktDescriptor::getFieldStructName(void *object, int field) const
+const char *IDSDelayVotingPktDescriptor::getFieldStructName(void *object, int field) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
     if (basedesc) {
@@ -286,11 +306,12 @@ const char *IDSVotingPktDescriptor::getFieldStructName(void *object, int field) 
         "LAddress::L3Type",
         "LAddress::L3Type",
         NULL,
+        NULL,
     };
-    return (field>=0 && field<3) ? fieldStructNames[field] : NULL;
+    return (field>=0 && field<4) ? fieldStructNames[field] : NULL;
 }
 
-void *IDSVotingPktDescriptor::getFieldStructPointer(void *object, int field, int i) const
+void *IDSDelayVotingPktDescriptor::getFieldStructPointer(void *object, int field, int i) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
     if (basedesc) {
@@ -298,7 +319,7 @@ void *IDSVotingPktDescriptor::getFieldStructPointer(void *object, int field, int
             return basedesc->getFieldStructPointer(object, field, i);
         field -= basedesc->getFieldCount(object);
     }
-    IDSVotingPkt *pp = (IDSVotingPkt *)object; (void)pp;
+    IDSDelayVotingPkt *pp = (IDSDelayVotingPkt *)object; (void)pp;
     switch (field) {
         case 0: return (void *)(&pp->getDestAddr()); break;
         case 1: return (void *)(&pp->getSrcAddr()); break;

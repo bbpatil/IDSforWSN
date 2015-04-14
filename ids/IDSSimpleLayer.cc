@@ -29,6 +29,7 @@
 #include "IDSVotingPkt_m.h"
 #include "IDSVotingResponsePkt_m.h"
 #include "NetwControlInfo.h"
+#include "IDSDelayVotingPkt_m.h"
 
 Define_Module(IDSSimpleLayer);
 
@@ -286,10 +287,11 @@ void IDSSimpleLayer::analyseNetwPkt(StaticNetwPkt* netwPkt){
 						// Evaluate whether this packet was sent with a delay:
 						if (enabledDelayDetection) {
 						    // Check whether this packet was sent in time
-						    if (entry->delayTime > simTime()) {
+						    // If already marked as delayed, it was already once counted at the window evaluation
+						    if (entry->delayTime > simTime() && not (entry->markedAsDelayed)) {
 						        // Packet was not sent before deadline
 						        forwardersMap[netwPkt->getSrcAddr()].delayedPacketsLastWindow++;
-						    } else {
+						    } else if (not (entry->markedAsDelayed)) {
 						        // Packet was sent before deadlnie
 						        forwardersMap[netwPkt->getSrcAddr()].notDelayedPacketsLastWindow++;
 						    }
@@ -462,6 +464,7 @@ void IDSSimpleLayer::evaluateLastWindow() {
     // If delay attack is evaluated, check all the packets in the buffer whether they are delayed or not
     if (enabledDelayDetection) {
         // TODO: Check the buffer for delayed packets and increment potential delays for all the neighbors
+        checkBufferForDelays();
     }
 
     // The evaluation should be done for all monitored neighbors
@@ -482,7 +485,7 @@ void IDSSimpleLayer::evaluateLastWindow() {
             // Start the voting scheme if not yet considered dropper:
             if (!entry->isDropperGlobal) {
                 debugEV << "Node is not globally decided as dropper yet. Voting." << endl;
-                askNeighborsForDropping(nodeAddr, false);
+                askNeighborsForDropping(nodeAddr);
             } else {
                 debugEV << "Node is already globally decided as dropper. No voting." << endl;
             }
@@ -490,13 +493,13 @@ void IDSSimpleLayer::evaluateLastWindow() {
         // If the node is not a dropper and delay attack detection is enabled, evaluate the ratio of delayed packets
         } else if (enabledDelayDetection) {
             if (entry->getDelayLastWindowDroppedRatio() > delayThreshold) {
-                debugEV << "Node " << nodeAddr << " dealyed " << entry->getDelayLastWindowDroppedRatio()*100 <<
-                        " % packets. There is an assumption that it is a dropper => voting scheme?" << endl;
+                debugEV << "Node " << nodeAddr << " delayed " << entry->getDelayLastWindowDroppedRatio()*100 <<
+                        " % packets. There is an assumption that it is a delayer => voting scheme?" << endl;
                 // Since now we locally assume this node as delayer:
                 entry->isDelayerLocal = true;
                 if (!entry->isDelayerGlobal) {
                     debugEV << "Node is not globally decided as dropper yet. Voting." << endl;
-                    askNeighborsForDropping(nodeAddr, true);
+                    askNeighborsForDelay(nodeAddr);
                 } else {
                     debugEV << "Node is already globally decided as dropper. No voting." << endl;
                 }
@@ -544,7 +547,7 @@ void IDSSimpleLayer::responseVotingRequests() {
 /**
  * There is an assumption that node is dropper -> here the neighbors are being asked for their claim
  */
-void IDSSimpleLayer::askNeighborsForDropping(int nodeAddr, bool delayAttack) {
+void IDSSimpleLayer::askNeighborsForDropping(int nodeAddr) {
 
     if (forwardersMap[nodeAddr].isWaitingForResponses == true) {
         debugEV << "Already waiting for responses from another window" << endl;
@@ -559,12 +562,6 @@ void IDSSimpleLayer::askNeighborsForDropping(int nodeAddr, bool delayAttack) {
     idsPkt->setDestAddr(LAddress::L3BROADCAST);
     idsPkt->setSrcAddr(net->getNetwAddr());
     idsPkt->setNodeID(nodeAddr);
-    // Delay attack:
-    if(delayAttack) {
-        idsPkt->setDelayAttack(true);
-    } else {
-        idsPkt->setDelayAttack(false);
-    }
     NetwControlInfo::setControlInfo(idsPkt, idsPkt->getDestAddr());
 
     send(idsPkt, idsSenderControlOut);
@@ -577,7 +574,41 @@ void IDSSimpleLayer::askNeighborsForDropping(int nodeAddr, bool delayAttack) {
     scheduleAt(simTime() + collectingTime, idsResponsesCollectionTimer);
 
     forwardersMap[nodeAddr].isWaitingForResponses = true;
+}
 
+/**
+ * There is an assumption that node is delayer -> here the neighbors are being asked for their claim
+ */
+void IDSSimpleLayer::askNeighborsForDelay(int nodeAddr) {
+
+    if (forwardersMap[nodeAddr].isWaitingForDelayResponses == true) {
+        debugEV << "Already waiting for responses about delay from another window" << endl;
+        return;
+    }
+
+    debugEV << "Node " << nodeAddr << " is assumed to be an delayer => ask neighbors " << endl;
+
+    // Here we have to send a packet to ask neighbors for decision about the node -> this is done by IDS sender
+    IDSDelayVotingPkt *idsDelayPkt = new IDSDelayVotingPkt();
+
+    idsDelayPkt->setDestAddr(LAddress::L3BROADCAST);
+    idsDelayPkt->setSrcAddr(net->getNetwAddr());
+    idsDelayPkt->setNodeID(nodeAddr);
+    NetwControlInfo::setControlInfo(idsDelayPkt, idsDelayPkt->getDestAddr());
+
+    send(idsDelayPkt, idsSenderControlOut);
+
+    // Start the timer for responses collection:
+//    idsResponsesCollectionTimer = new cMessage("" + nodeAddr, IDS_RESPONSES_COLLECTION_TIMER);
+    char kind[5];
+    sprintf(kind, "%d", nodeAddr);
+    idsDelayResponsesCollectionTimer = new cMessage(kind, IDS_DELAY_RESPONSES_COLLECTION_TIMER);
+    scheduleAt(simTime() + collectingTime, idsDelayResponsesCollectionTimer);
+
+    forwardersMap[nodeAddr].isWaitingForDelayResponses = true;
+
+
+    // TODO: Continue with collection of delay responses....!!!!!!!!!!!!
 }
 
 void IDSSimpleLayer::resetWindowValues() {
@@ -645,6 +676,23 @@ void IDSSimpleLayer::evaluateResponses(int nodeID) {
     forwardersMap[nodeID].negativeResponses = 0;
 
     forwardersMap[nodeID].isWaitingForResponses = false;
+}
+
+/**
+ * This is used to check a buffer for delayed packets at the end of each of the window
+ */
+void IDSSimpleLayer::checkBufferForDelays() {
+    // check delays and mark delayed packets as checked
+    for(FwdBuffer::iterator entry=fwdBuffer.begin(); entry!=fwdBuffer.end(); ){
+        if (simTime() >= entry->delayTime){
+            debugEV << "Packet is delayed (" << entry->srcAddr << "->" << entry->destAddr << ")" << endl;
+            debugEV << "SimTime=" << simTime() << ", delay time=" << entry->delayTime << endl;
+            // TODO: overit, ze v nasledujicim ma fakt byt "destAddr"
+            forwardersMap[entry->destAddr].delayedPacketsLastWindow++;
+            entry->markedAsDelayed = true;
+
+        }
+    }
 }
 
 IDSSimpleLayer::~IDSSimpleLayer()

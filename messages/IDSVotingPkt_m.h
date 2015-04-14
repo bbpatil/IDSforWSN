@@ -27,7 +27,6 @@
  *     LAddress::L3Type destAddr;   
  *     LAddress::L3Type srcAddr;    
  * 	int              nodeID;
- * 	bool             delayAttack;
  * }
  * </pre>
  */
@@ -37,7 +36,6 @@ class IDSVotingPkt : public ::cPacket
     LAddress::L3Type destAddr_var;
     LAddress::L3Type srcAddr_var;
     int nodeID_var;
-    bool delayAttack_var;
 
   private:
     void copy(const IDSVotingPkt& other);
@@ -64,8 +62,6 @@ class IDSVotingPkt : public ::cPacket
     virtual void setSrcAddr(const LAddress::L3Type& srcAddr);
     virtual int getNodeID() const;
     virtual void setNodeID(int nodeID);
-    virtual bool getDelayAttack() const;
-    virtual void setDelayAttack(bool delayAttack);
 };
 
 inline void doPacking(cCommBuffer *b, IDSVotingPkt& obj) {obj.parsimPack(b);}

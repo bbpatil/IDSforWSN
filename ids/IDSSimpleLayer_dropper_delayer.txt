@@ -13,11 +13,18 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
+/**
+ * TODO
+ * In this file is the unfinished implementation of IDS, where after each window, the IDS
+ * evaluates neighbors for dropping and if it is negative, the neighbors are evaluated for
+ * delays. However, the implementation is not finished!!!!!!!
+ */
+
 #include <omnetpp.h>
 #include <sstream>
 #include <string>
 #include <FindModule.h>
-#include "IDSSimpleLayer.h"
+#include "_IDSSimpleLayer.h"
 #include "StaticNetwLayer.h"
 #include "StaticNetwPkt_m.h"
 #include "MacPkt_m.h"
@@ -29,15 +36,16 @@
 #include "IDSVotingPkt_m.h"
 #include "IDSVotingResponsePkt_m.h"
 #include "NetwControlInfo.h"
+#include "IDSDelayVotingPkt_m.h"
 
-Define_Module(IDSSimpleLayer);
+Define_Module(_IDSSimpleLayer);
 
 using namespace std;
 
 /**
  * Initialize module
  */
-void IDSSimpleLayer::initialize(int stage){
+void _IDSSimpleLayer::initialize(int stage){
     debugEV << "IDS is being initialized..." << endl;
 	IDSLayer::initialize(stage);
 	if (stage==0){
@@ -62,8 +70,7 @@ void IDSSimpleLayer::initialize(int stage){
 		numSomebody2Me = numSomebody2Somebody = numMe2Somebody = 0;
 		evaluated = false;
 
-		// New collaboration parameters:
-		enabledDropperDetection = par("enabledDropperDetection");
+		// New parameters:
 		windowSize = par("windowSize");
 		minVotesReceived = par("minVotesReceived");
 		votingThreshold = par("votingThreshold").doubleValue();
@@ -87,7 +94,7 @@ void IDSSimpleLayer::initialize(int stage){
 /**
  * Handle messages from upper (network) layer
  */
-void IDSSimpleLayer::handleUpperMsg(cMessage *msg){
+void _IDSSimpleLayer::handleUpperMsg(cMessage *msg){
 	MacPkt* macPkt = static_cast<MacPkt *> (msg);
 
 	StaticNetwPkt* netwPkt = dynamic_cast<StaticNetwPkt *> (macPkt->getEncapsulatedPacket());
@@ -102,7 +109,7 @@ void IDSSimpleLayer::handleUpperMsg(cMessage *msg){
 /**
  * Handle messages from lower (physical) layer
  */
-void IDSSimpleLayer::handleLowerMsg(cMessage *msg){
+void _IDSSimpleLayer::handleLowerMsg(cMessage *msg){
 
     debugEV << "IDS handles lower msg.." << endl;
 
@@ -169,7 +176,7 @@ void IDSSimpleLayer::handleLowerMsg(cMessage *msg){
 /**
  * Handle messages from itself - here, the time windows are managed
  */
-void IDSSimpleLayer::handleSelfMsg(cMessage *msg) {
+void _IDSSimpleLayer::handleSelfMsg(cMessage *msg) {
     if (msg->getKind() == IDS_WINDOW_TIMER) {
         debugEV << "New window is being started...." << endl;
         debugEV << msg->getName() << endl;
@@ -181,13 +188,9 @@ void IDSSimpleLayer::handleSelfMsg(cMessage *msg) {
         resetWindowValues();
 
         scheduleAt(simTime() + windowSize, idsWindowTimer);
-    } else if (msg->getKind() == IDS_DROPPER_RESPONSES_COLLECTION_TIMER) {
-        debugEV << "It is time to evaluate dropper responses about node " << msg->getName() << endl;
-        evaluateDropperResponses(atoi(msg->getName()) );
-        delete msg;
-    } else if (msg->getKind() == IDS_DELAYER_RESPONSES_COLLECTION_TIMER) {
-        debugEV << "It is time to evaluate delayer responses about node " << msg->getName() << endl;
-        evaluateDelayerResponses(atoi(msg->getName()) );
+    } else if (msg->getKind() == IDS_RESPONSES_COLLECTION_TIMER) {
+        debugEV << "It is time to evaluate responses about node " << msg->getName() << endl;
+        evaluateResponses(atoi(msg->getName()) );
         delete msg;
     } else {
         delete msg;
@@ -199,7 +202,7 @@ void IDSSimpleLayer::handleSelfMsg(cMessage *msg) {
 /**
  * Finalize module
  */
-void IDSSimpleLayer::finish(){
+void _IDSSimpleLayer::finish(){
 	BaseLayer::finish();
 	//LOCAL EVALUATION CURRENTLY TURNED ON!
 	doEvaluation();
@@ -233,7 +236,7 @@ void IDSSimpleLayer::finish(){
 /**
  * Analyse received network packet
  */
-void IDSSimpleLayer::analyseNetwPkt(StaticNetwPkt* netwPkt){
+void _IDSSimpleLayer::analyseNetwPkt(StaticNetwPkt* netwPkt){
 	// packet is OK, analyse it
 	if (netwPkt != NULL){
 //
@@ -390,7 +393,7 @@ void IDSSimpleLayer::analyseNetwPkt(StaticNetwPkt* netwPkt){
 /**
  * Updates buffer of packets, that need to be forwarded
  */
-void IDSSimpleLayer::updateFwdBuffer(bool needOneSlot){
+void _IDSSimpleLayer::updateFwdBuffer(bool needOneSlot){
 	// check timeouts and throw away old packets
 	for(FwdBuffer::iterator entry=fwdBuffer.begin(); entry!=fwdBuffer.end(); ){
 		if (simTime() >= entry->timeout){
@@ -411,7 +414,7 @@ void IDSSimpleLayer::updateFwdBuffer(bool needOneSlot){
 /**
  * Perform IDS evaluation and compute stats
  */
-void IDSSimpleLayer::doEvaluation(){
+void _IDSSimpleLayer::doEvaluation(){
 	if (evaluated) return;
 
 	forwardersStats.reset();
@@ -460,7 +463,7 @@ void IDSSimpleLayer::doEvaluation(){
 /**
  * Evaluate IDS statistics over the last IDS window
  */
-void IDSSimpleLayer::evaluateLastWindow() {
+void _IDSSimpleLayer::evaluateLastWindow() {
 
     // Our window is over -> response to pending requests
     responseVotingRequests();
@@ -481,24 +484,21 @@ void IDSSimpleLayer::evaluateLastWindow() {
         debugEV << "Node " << nodeAddr << " is globally considered dropper: " << entry->isDropperGlobal << endl;
 
         // If dropping over the last window was higher than threshold, start voting scheme:
-        if (enabledDropperDetection) {
-            if (entry->getPacketsLastWindowDroppedRatio() > fwdDetectionThreshold) {
-                debugEV << "Node " << nodeAddr << " dropped " << entry->getPacketsLastWindowDroppedRatio()*100 <<
-                        " % packets. There is an assumption that it is a dropper => voting scheme?" << endl;
-                // Since now we locally assume this node as dropper:
-                entry->isDropperLocal = true;
-                // Start the voting scheme if not yet considered dropper:
-                if (!entry->isDropperGlobal) {
-                    debugEV << "Node is not globally decided as dropper yet. Voting." << endl;
-                    askNeighborsForDropping(nodeAddr);
-                } else {
-                    debugEV << "Node is already globally decided as dropper. No voting." << endl;
-                }
+        if (entry->getPacketsLastWindowDroppedRatio() > fwdDetectionThreshold) {
+            debugEV << "Node " << nodeAddr << " dropped " << entry->getPacketsLastWindowDroppedRatio()*100 <<
+                    " % packets. There is an assumption that it is a dropper => voting scheme?" << endl;
+            // Since now we locally assume this node as dropper:
+            entry->isDropperLocal = true;
+            // Start the voting scheme if not yet considered dropper:
+            if (!entry->isDropperGlobal) {
+                debugEV << "Node is not globally decided as dropper yet. Voting." << endl;
+                askNeighborsForDropping(nodeAddr);
+            } else {
+                debugEV << "Node is already globally decided as dropper. No voting." << endl;
             }
-        }
 
-        // If delay attack detection is enabled, evaluate the ratio of delayed packets
-        if (enabledDelayDetection) {
+        // If the node is not a dropper and delay attack detection is enabled, evaluate the ratio of delayed packets
+        } else if (enabledDelayDetection) {
             if (entry->getDelayLastWindowDroppedRatio() > delayThreshold) {
                 debugEV << "Node " << nodeAddr << " delayed " << entry->getDelayLastWindowDroppedRatio()*100 <<
                         " % packets. There is an assumption that it is a delayer => voting scheme?" << endl;
@@ -521,7 +521,7 @@ void IDSSimpleLayer::evaluateLastWindow() {
 /**
  * Here the pending request are responded
  */
-void IDSSimpleLayer::responseVotingRequests() {
+void _IDSSimpleLayer::responseVotingRequests() {
 
     // Sending responses to the pending requests:
     while (!responseBuffer.empty()) {
@@ -539,13 +539,7 @@ void IDSSimpleLayer::responseVotingRequests() {
             idsResponsePkt->setDestAddr(responseBuffer.front().srcAddr);
             idsResponsePkt->setSrcAddr(net->getNetwAddr());
             idsResponsePkt->setNodeID(responseBuffer.front().suspiciousAddr);
-            if (responseBuffer.front().attackKind == DROPPER) {
-                idsResponsePkt->setIsAttacker(forwardersMap[responseBuffer.front().suspiciousAddr].isDropperLocal);
-                idsResponsePkt->setAttackKind(DROPPER);
-            } else if (responseBuffer.front().attackKind == DELAYER) {
-                idsResponsePkt->setIsAttacker(forwardersMap[responseBuffer.front().suspiciousAddr].isDelayerLocal);
-                idsResponsePkt->setAttackKind(DELAYER);
-            }
+            idsResponsePkt->setIsAttacker(forwardersMap[responseBuffer.front().suspiciousAddr].isDropperLocal);
 
             NetwControlInfo::setControlInfo(idsResponsePkt, idsResponsePkt->getDestAddr());
 
@@ -560,14 +554,14 @@ void IDSSimpleLayer::responseVotingRequests() {
 /**
  * There is an assumption that node is dropper -> here the neighbors are being asked for their claim
  */
-void IDSSimpleLayer::askNeighborsForDropping(int nodeAddr) {
+void _IDSSimpleLayer::askNeighborsForDropping(int nodeAddr) {
 
-    if (forwardersMap[nodeAddr].isWaitingForDropperResponses == true) {
-        debugEV << "Already waiting for dropper responses from another window" << endl;
+    if (forwardersMap[nodeAddr].isWaitingForResponses == true) {
+        debugEV << "Already waiting for responses from another window" << endl;
         return;
     }
 
-    debugEV << "Node " << nodeAddr << " is assumed to be a dropper => ask neighbors " << endl;
+    debugEV << "Node " << nodeAddr << " is assumed to be an attacker => ask neighbors " << endl;
 
     // Here we have to send a packet to ask neighbors for decision about the node -> this is done by IDS sender
     IDSVotingPkt *idsPkt = new IDSVotingPkt();
@@ -575,7 +569,6 @@ void IDSSimpleLayer::askNeighborsForDropping(int nodeAddr) {
     idsPkt->setDestAddr(LAddress::L3BROADCAST);
     idsPkt->setSrcAddr(net->getNetwAddr());
     idsPkt->setNodeID(nodeAddr);
-    idsPkt->setAttackKind(DROPPER);
     NetwControlInfo::setControlInfo(idsPkt, idsPkt->getDestAddr());
 
     send(idsPkt, idsSenderControlOut);
@@ -584,31 +577,30 @@ void IDSSimpleLayer::askNeighborsForDropping(int nodeAddr) {
 //    idsResponsesCollectionTimer = new cMessage("" + nodeAddr, IDS_RESPONSES_COLLECTION_TIMER);
     char kind[5];
     sprintf(kind, "%d", nodeAddr);
-    idsResponsesCollectionTimer = new cMessage(kind, IDS_DROPPER_RESPONSES_COLLECTION_TIMER);
+    idsResponsesCollectionTimer = new cMessage(kind, IDS_RESPONSES_COLLECTION_TIMER);
     scheduleAt(simTime() + collectingTime, idsResponsesCollectionTimer);
 
-    forwardersMap[nodeAddr].isWaitingForDropperResponses = true;
+    forwardersMap[nodeAddr].isWaitingForResponses = true;
 }
 
 /**
  * There is an assumption that node is delayer -> here the neighbors are being asked for their claim
  */
-void IDSSimpleLayer::askNeighborsForDelay(int nodeAddr) {
+void _IDSSimpleLayer::askNeighborsForDelay(int nodeAddr) {
 
     if (forwardersMap[nodeAddr].isWaitingForDelayResponses == true) {
         debugEV << "Already waiting for responses about delay from another window" << endl;
         return;
     }
 
-    debugEV << "Node " << nodeAddr << " is assumed to be a delayer => ask neighbors " << endl;
+    debugEV << "Node " << nodeAddr << " is assumed to be an delayer => ask neighbors " << endl;
 
     // Here we have to send a packet to ask neighbors for decision about the node -> this is done by IDS sender
-    IDSVotingPkt *idsDelayPkt = new IDSVotingPkt();
+    IDSDelayVotingPkt *idsDelayPkt = new IDSDelayVotingPkt();
 
     idsDelayPkt->setDestAddr(LAddress::L3BROADCAST);
     idsDelayPkt->setSrcAddr(net->getNetwAddr());
     idsDelayPkt->setNodeID(nodeAddr);
-    idsDelayPkt->setAttackKind(DELAYER);
     NetwControlInfo::setControlInfo(idsDelayPkt, idsDelayPkt->getDestAddr());
 
     send(idsDelayPkt, idsSenderControlOut);
@@ -617,7 +609,7 @@ void IDSSimpleLayer::askNeighborsForDelay(int nodeAddr) {
 //    idsResponsesCollectionTimer = new cMessage("" + nodeAddr, IDS_RESPONSES_COLLECTION_TIMER);
     char kind[5];
     sprintf(kind, "%d", nodeAddr);
-    idsDelayResponsesCollectionTimer = new cMessage(kind, IDS_DELAYER_RESPONSES_COLLECTION_TIMER);
+    idsDelayResponsesCollectionTimer = new cMessage(kind, IDS_DELAY_RESPONSES_COLLECTION_TIMER);
     scheduleAt(simTime() + collectingTime, idsDelayResponsesCollectionTimer);
 
     forwardersMap[nodeAddr].isWaitingForDelayResponses = true;
@@ -626,7 +618,7 @@ void IDSSimpleLayer::askNeighborsForDelay(int nodeAddr) {
     // TODO: Continue with collection of delay responses....!!!!!!!!!!!!
 }
 
-void IDSSimpleLayer::resetWindowValues() {
+void _IDSSimpleLayer::resetWindowValues() {
     debugEV << "Window values are being reset." << endl;
 
     for (IDSMap::iterator i=forwardersMap.begin();i!=forwardersMap.end();i++){
@@ -643,109 +635,60 @@ void IDSSimpleLayer::resetWindowValues() {
     }
 }
 
-void IDSSimpleLayer::votingResponse(IDSVotingPkt* idsPkt) {
+void _IDSSimpleLayer::votingResponse(IDSVotingPkt* idsPkt) {
 
     // Pending requirements are buffered and sent once our window is over.
-    responseBuffer.push(ResponseEntry(idsPkt->getSrcAddr(), idsPkt->getNodeID(), idsPkt->getAttackKind()));
+    responseBuffer.push(ResponseEntry(idsPkt->getSrcAddr(), idsPkt->getNodeID()));
 
     debugEV << "Size of the response buffer is " << responseBuffer.size() << endl;
 
     return;
 }
 
-void IDSSimpleLayer::recordResponse(IDSVotingResponsePkt* idsResponsePkt) {
-    // Dropper case
-    if (idsResponsePkt->getAttackKind() == DROPPER) {
-        if (idsResponsePkt->getIsAttacker()) {
-            forwardersMap[idsResponsePkt->getNodeID()].positiveDropperResponses++;
-        } else {
-            forwardersMap[idsResponsePkt->getNodeID()].negativeDropperResponses++;
-        }
-        debugEV << "IDS dropper responses about node " << idsResponsePkt->getNodeID() << ": " <<
-                forwardersMap[idsResponsePkt->getNodeID()].positiveDropperResponses << " positive responses and " <<
-                forwardersMap[idsResponsePkt->getNodeID()].negativeDropperResponses << " negative responses." << endl;
+void _IDSSimpleLayer::recordResponse(IDSVotingResponsePkt* idsResponsePkt) {
+    if (idsResponsePkt->getIsAttacker()) {
+        forwardersMap[idsResponsePkt->getNodeID()].positiveResponses++;
+    } else {
+        forwardersMap[idsResponsePkt->getNodeID()].negativeResponses++;
     }
-    // Delayer case
-    if (idsResponsePkt->getAttackKind() == DELAYER) {
-        if (idsResponsePkt->getIsAttacker()) {
-            forwardersMap[idsResponsePkt->getNodeID()].positiveDelayerResponses++;
-        } else {
-            forwardersMap[idsResponsePkt->getNodeID()].negativeDelayerResponses++;
-        }
-        debugEV << "IDS delayer responses about node " << idsResponsePkt->getNodeID() << ": " <<
-                forwardersMap[idsResponsePkt->getNodeID()].positiveDelayerResponses << " positive responses and " <<
-                forwardersMap[idsResponsePkt->getNodeID()].negativeDelayerResponses << " negative responses." << endl;
-    }
+    debugEV << "IDS Responses about node " << idsResponsePkt->getNodeID() << ": " <<
+            forwardersMap[idsResponsePkt->getNodeID()].positiveResponses << " positive responses and " <<
+            forwardersMap[idsResponsePkt->getNodeID()].negativeResponses << " negative responses." << endl;
 }
 
 /**
- * This is used to evaluate responses about dropper node when the collection time is over
+ * This is used to evaluate responses about node when the collection time is over
  */
-void IDSSimpleLayer::evaluateDropperResponses(int nodeID) {
-    debugEV << "We are going to evaluate dropper responses about node " << nodeID << endl;
-    debugEV << "IDS dropper responses about node " << nodeID << ": " <<
-                forwardersMap[nodeID].positiveDropperResponses << " positive responses and " <<
-                forwardersMap[nodeID].negativeDropperResponses << " negative responses." << endl;
-    debugEV << "IDS dropper responses about node " << nodeID << ": " <<
-                forwardersMap[nodeID].positiveDropperResponses << " positive responses and " <<
-                forwardersMap[nodeID].negativeDropperResponses << " negative responses." << endl;
+void _IDSSimpleLayer::evaluateResponses(int nodeID) {
+    debugEV << "We are going to evaluate responses about node " << nodeID << endl;
+    debugEV << "IDS Responses about node " << nodeID << ": " <<
+                forwardersMap[nodeID].positiveResponses << " positive responses and " <<
+                forwardersMap[nodeID].negativeResponses << " negative responses." << endl;
 
     // In case of no response
-    if (forwardersMap[nodeID].positiveDropperResponses == 0 && forwardersMap[nodeID].negativeDropperResponses == 0) {
-        forwardersMap[nodeID].isWaitingForDropperResponses = false;
+    if (forwardersMap[nodeID].positiveResponses == 0 && forwardersMap[nodeID].negativeResponses == 0) {
+        forwardersMap[nodeID].isWaitingForResponses = false;
         return;
     }
 
-    if ( ( ( forwardersMap[nodeID].positiveDropperResponses /
-        (forwardersMap[nodeID].positiveDropperResponses + forwardersMap[nodeID].negativeDropperResponses) ) >
-        votingThreshold ) && ( (forwardersMap[nodeID].positiveDropperResponses + forwardersMap[nodeID].negativeDropperResponses) >= minVotesReceived) ) {
+    if ( ( ( forwardersMap[nodeID].positiveResponses /
+        (forwardersMap[nodeID].positiveResponses + forwardersMap[nodeID].negativeResponses) ) >
+        votingThreshold ) && ( (forwardersMap[nodeID].positiveResponses + forwardersMap[nodeID].negativeResponses) >= minVotesReceived) ) {
         debugEV << "Since the ratio of positive responses is higher than threshold and we received enough responses, the node " << nodeID << " will be considered dropper globally" << endl;
         forwardersMap[nodeID].isDropperGlobal = true;
     }
 
     // Reset the responses for next time.
-    forwardersMap[nodeID].positiveDropperResponses = 0;
-    forwardersMap[nodeID].negativeDropperResponses = 0;
+    forwardersMap[nodeID].positiveResponses = 0;
+    forwardersMap[nodeID].negativeResponses = 0;
 
-    forwardersMap[nodeID].isWaitingForDropperResponses = false;
-}
-
-/**
- * This is used to evaluate responses about delayer node when the collection time is over
- */
-void IDSSimpleLayer::evaluateDelayerResponses(int nodeID) {
-    debugEV << "We are going to evaluate delayer responses about node " << nodeID << endl;
-    debugEV << "IDS delayer responses about node " << nodeID << ": " <<
-                forwardersMap[nodeID].positiveDelayerResponses << " positive responses and " <<
-                forwardersMap[nodeID].negativeDelayerResponses << " negative responses." << endl;
-    debugEV << "IDS delayer responses about node " << nodeID << ": " <<
-                forwardersMap[nodeID].positiveDelayerResponses << " positive responses and " <<
-                forwardersMap[nodeID].negativeDelayerResponses << " negative responses." << endl;
-
-    // In case of no response
-    if (forwardersMap[nodeID].positiveDelayerResponses == 0 && forwardersMap[nodeID].negativeDelayerResponses == 0) {
-        forwardersMap[nodeID].isWaitingForDelayResponses = false;
-        return;
-    }
-
-    if ( ( ( forwardersMap[nodeID].positiveDelayerResponses /
-        (forwardersMap[nodeID].positiveDelayerResponses + forwardersMap[nodeID].negativeDelayerResponses) ) >
-        votingThreshold ) && ( (forwardersMap[nodeID].positiveDelayerResponses + forwardersMap[nodeID].negativeDelayerResponses) >= minVotesReceived) ) {
-        debugEV << "Since the ratio of positive responses is higher than threshold and we received enough responses, the node " << nodeID << " will be considered delayer globally" << endl;
-        forwardersMap[nodeID].isDelayerGlobal = true;
-    }
-
-    // Reset the responses for next time.
-    forwardersMap[nodeID].positiveDelayerResponses = 0;
-    forwardersMap[nodeID].negativeDelayerResponses = 0;
-
-    forwardersMap[nodeID].isWaitingForDelayResponses = false;
+    forwardersMap[nodeID].isWaitingForResponses = false;
 }
 
 /**
  * This is used to check a buffer for delayed packets at the end of each of the window
  */
-void IDSSimpleLayer::checkBufferForDelays() {
+void _IDSSimpleLayer::checkBufferForDelays() {
     // check delays and mark delayed packets as checked
     for(FwdBuffer::iterator entry=fwdBuffer.begin(); entry!=fwdBuffer.end(); ){
         if (simTime() >= entry->delayTime){
@@ -759,7 +702,7 @@ void IDSSimpleLayer::checkBufferForDelays() {
     }
 }
 
-IDSSimpleLayer::~IDSSimpleLayer()
+_IDSSimpleLayer::~_IDSSimpleLayer()
 {
     cancelAndDelete(idsWindowTimer);
 }

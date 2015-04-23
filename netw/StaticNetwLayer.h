@@ -26,10 +26,11 @@ protected:
     }*/
 	int nextHopAddr;
 	int nbPacketsSent, nbPacketsForwarded, nbPacketsReceived, nbPacketsDropped;
-	double fwdPacketWait;
+
 
 public:
 	double pPacketDropping;
+	double fwdPacketWait;
 
 	StaticNetwLayer();
 	virtual ~StaticNetwLayer();

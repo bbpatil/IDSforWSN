@@ -61,6 +61,7 @@ void IDSVotingResponsePkt::copy(const IDSVotingResponsePkt& other)
     this->srcAddr_var = other.srcAddr_var;
     this->nodeID_var = other.nodeID_var;
     this->isAttacker_var = other.isAttacker_var;
+    this->attackKind_var = other.attackKind_var;
 }
 
 void IDSVotingResponsePkt::parsimPack(cCommBuffer *b)
@@ -70,6 +71,7 @@ void IDSVotingResponsePkt::parsimPack(cCommBuffer *b)
     doPacking(b,this->srcAddr_var);
     doPacking(b,this->nodeID_var);
     doPacking(b,this->isAttacker_var);
+    doPacking(b,this->attackKind_var);
 }
 
 void IDSVotingResponsePkt::parsimUnpack(cCommBuffer *b)
@@ -79,6 +81,7 @@ void IDSVotingResponsePkt::parsimUnpack(cCommBuffer *b)
     doUnpacking(b,this->srcAddr_var);
     doUnpacking(b,this->nodeID_var);
     doUnpacking(b,this->isAttacker_var);
+    doUnpacking(b,this->attackKind_var);
 }
 
 LAddress::L3Type& IDSVotingResponsePkt::getDestAddr()
@@ -119,6 +122,16 @@ bool IDSVotingResponsePkt::getIsAttacker() const
 void IDSVotingResponsePkt::setIsAttacker(bool isAttacker)
 {
     this->isAttacker_var = isAttacker;
+}
+
+Attack_t& IDSVotingResponsePkt::getAttackKind()
+{
+    return attackKind_var;
+}
+
+void IDSVotingResponsePkt::setAttackKind(const Attack_t& attackKind)
+{
+    this->attackKind_var = attackKind;
 }
 
 class IDSVotingResponsePktDescriptor : public cClassDescriptor
@@ -168,7 +181,7 @@ const char *IDSVotingResponsePktDescriptor::getProperty(const char *propertyname
 int IDSVotingResponsePktDescriptor::getFieldCount(void *object) const
 {
     cClassDescriptor *basedesc = getBaseClassDescriptor();
-    return basedesc ? 4+basedesc->getFieldCount(object) : 4;
+    return basedesc ? 5+basedesc->getFieldCount(object) : 5;
 }
 
 unsigned int IDSVotingResponsePktDescriptor::getFieldTypeFlags(void *object, int field) const
@@ -184,8 +197,9 @@ unsigned int IDSVotingResponsePktDescriptor::getFieldTypeFlags(void *object, int
         FD_ISCOMPOUND,
         FD_ISEDITABLE,
         FD_ISEDITABLE,
+        FD_ISCOMPOUND,
     };
-    return (field>=0 && field<4) ? fieldTypeFlags[field] : 0;
+    return (field>=0 && field<5) ? fieldTypeFlags[field] : 0;
 }
 
 const char *IDSVotingResponsePktDescriptor::getFieldName(void *object, int field) const
@@ -201,8 +215,9 @@ const char *IDSVotingResponsePktDescriptor::getFieldName(void *object, int field
         "srcAddr",
         "nodeID",
         "isAttacker",
+        "attackKind",
     };
-    return (field>=0 && field<4) ? fieldNames[field] : NULL;
+    return (field>=0 && field<5) ? fieldNames[field] : NULL;
 }
 
 int IDSVotingResponsePktDescriptor::findField(void *object, const char *fieldName) const
@@ -213,6 +228,7 @@ int IDSVotingResponsePktDescriptor::findField(void *object, const char *fieldNam
     if (fieldName[0]=='s' && strcmp(fieldName, "srcAddr")==0) return base+1;
     if (fieldName[0]=='n' && strcmp(fieldName, "nodeID")==0) return base+2;
     if (fieldName[0]=='i' && strcmp(fieldName, "isAttacker")==0) return base+3;
+    if (fieldName[0]=='a' && strcmp(fieldName, "attackKind")==0) return base+4;
     return basedesc ? basedesc->findField(object, fieldName) : -1;
 }
 
@@ -229,8 +245,9 @@ const char *IDSVotingResponsePktDescriptor::getFieldTypeString(void *object, int
         "LAddress::L3Type",
         "int",
         "bool",
+        "Attack_t",
     };
-    return (field>=0 && field<4) ? fieldTypeStrings[field] : NULL;
+    return (field>=0 && field<5) ? fieldTypeStrings[field] : NULL;
 }
 
 const char *IDSVotingResponsePktDescriptor::getFieldProperty(void *object, int field, const char *propertyname) const
@@ -274,6 +291,7 @@ std::string IDSVotingResponsePktDescriptor::getFieldAsString(void *object, int f
         case 1: {std::stringstream out; out << pp->getSrcAddr(); return out.str();}
         case 2: return long2string(pp->getNodeID());
         case 3: return bool2string(pp->getIsAttacker());
+        case 4: {std::stringstream out; out << pp->getAttackKind(); return out.str();}
         default: return "";
     }
 }
@@ -307,8 +325,9 @@ const char *IDSVotingResponsePktDescriptor::getFieldStructName(void *object, int
         "LAddress::L3Type",
         NULL,
         NULL,
+        "Attack_t",
     };
-    return (field>=0 && field<4) ? fieldStructNames[field] : NULL;
+    return (field>=0 && field<5) ? fieldStructNames[field] : NULL;
 }
 
 void *IDSVotingResponsePktDescriptor::getFieldStructPointer(void *object, int field, int i) const
@@ -323,6 +342,7 @@ void *IDSVotingResponsePktDescriptor::getFieldStructPointer(void *object, int fi
     switch (field) {
         case 0: return (void *)(&pp->getDestAddr()); break;
         case 1: return (void *)(&pp->getSrcAddr()); break;
+        case 4: return (void *)(&pp->getAttackKind()); break;
         default: return NULL;
     }
 }

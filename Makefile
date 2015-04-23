@@ -75,14 +75,12 @@ OBJS = \
     $O/netw/StaticNetwLayer.o \
     $O/netw/WiseRouteEx.o \
     $O/utility/SimHelper.o \
-    $O/messages/IDSDelayVotingPkt_m.o \
     $O/messages/IDSVotingPkt_m.o \
     $O/messages/IDSVotingResponsePkt_m.o \
     $O/messages/StaticNetwPkt_m.o
 
 # Message files
 MSGFILES = \
-    messages/IDSDelayVotingPkt.msg \
     messages/IDSVotingPkt.msg \
     messages/IDSVotingResponsePkt.msg \
     messages/StaticNetwPkt.msg
@@ -213,6 +211,7 @@ $O/ids/IDSLayer.o: ids/IDSLayer.cc \
 $O/ids/IDSSender.o: ids/IDSSender.cc \
 	ids/IDSSender.h \
 	messages/IDSVotingPkt_m.h \
+	messages/MessageTypes.h \
 	$(MIXIM_PROJ)/src/base/messages/NetwPkt_m.h \
 	$(MIXIM_PROJ)/src/base/modules/ArpInterface.h \
 	$(MIXIM_PROJ)/src/base/modules/BaseBattery.h \
@@ -231,9 +230,9 @@ $O/ids/IDSSender.o: ids/IDSSender.cc \
 $O/ids/IDSSimpleLayer.o: ids/IDSSimpleLayer.cc \
 	ids/IDSLayer.h \
 	ids/IDSSimpleLayer.h \
-	messages/IDSDelayVotingPkt_m.h \
 	messages/IDSVotingPkt_m.h \
 	messages/IDSVotingResponsePkt_m.h \
+	messages/MessageTypes.h \
 	messages/StaticNetwPkt_m.h \
 	netw/StaticNetwLayer.h \
 	utility/SimHelper.h \
@@ -269,16 +268,9 @@ $O/ids/IDSSimpleLayer.o: ids/IDSSimpleLayer.cc \
 	$(MIXIM_PROJ)/src/modules/phy/Decider802154Narrow.h \
 	$(MIXIM_PROJ)/src/modules/phy/DeciderResult802154Narrow.h \
 	$(MIXIM_PROJ)/src/modules/utility/DroppedPacket.h
-$O/messages/IDSDelayVotingPkt_m.o: messages/IDSDelayVotingPkt_m.cc \
-	messages/IDSDelayVotingPkt_m.h \
-	$(MIXIM_PROJ)/src/base/messages/NetwPkt_m.h \
-	$(MIXIM_PROJ)/src/base/utils/MiXiMDefs.h \
-	$(MIXIM_PROJ)/src/base/utils/SimpleAddress.h \
-	$(MIXIM_PROJ)/src/base/utils/miximkerneldefs.h \
-	$(MIXIM_PROJ)/src/inet_stub/base/INETDefs.h \
-	$(MIXIM_PROJ)/src/inet_stub/linklayer/contract/MACAddress.h
 $O/messages/IDSVotingPkt_m.o: messages/IDSVotingPkt_m.cc \
 	messages/IDSVotingPkt_m.h \
+	messages/MessageTypes.h \
 	$(MIXIM_PROJ)/src/base/messages/NetwPkt_m.h \
 	$(MIXIM_PROJ)/src/base/utils/MiXiMDefs.h \
 	$(MIXIM_PROJ)/src/base/utils/SimpleAddress.h \
@@ -287,6 +279,7 @@ $O/messages/IDSVotingPkt_m.o: messages/IDSVotingPkt_m.cc \
 	$(MIXIM_PROJ)/src/inet_stub/linklayer/contract/MACAddress.h
 $O/messages/IDSVotingResponsePkt_m.o: messages/IDSVotingResponsePkt_m.cc \
 	messages/IDSVotingResponsePkt_m.h \
+	messages/MessageTypes.h \
 	$(MIXIM_PROJ)/src/base/messages/NetwPkt_m.h \
 	$(MIXIM_PROJ)/src/base/utils/MiXiMDefs.h \
 	$(MIXIM_PROJ)/src/base/utils/SimpleAddress.h \
@@ -369,6 +362,7 @@ $O/utility/SimHelper.o: utility/SimHelper.cc \
 	ids/IDSSimpleLayer.h \
 	messages/IDSVotingPkt_m.h \
 	messages/IDSVotingResponsePkt_m.h \
+	messages/MessageTypes.h \
 	messages/StaticNetwPkt_m.h \
 	mobility/StaticMobility.h \
 	netw/StaticNetwLayer.h \

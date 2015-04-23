@@ -15,6 +15,7 @@
 
 // cplusplus {{
 #include "NetwPkt_m.h"
+#include "MessageTypes.h"
 // }}
 
 
@@ -28,6 +29,7 @@
  *     LAddress::L3Type srcAddr;    
  * 	int nodeID;
  * 	bool isAttacker;
+ * 	Attack_t           attackKind;
  * }
  * </pre>
  */
@@ -38,6 +40,7 @@ class IDSVotingResponsePkt : public ::cPacket
     LAddress::L3Type srcAddr_var;
     int nodeID_var;
     bool isAttacker_var;
+    Attack_t attackKind_var;
 
   private:
     void copy(const IDSVotingResponsePkt& other);
@@ -66,6 +69,9 @@ class IDSVotingResponsePkt : public ::cPacket
     virtual void setNodeID(int nodeID);
     virtual bool getIsAttacker() const;
     virtual void setIsAttacker(bool isAttacker);
+    virtual Attack_t& getAttackKind();
+    virtual const Attack_t& getAttackKind() const {return const_cast<IDSVotingResponsePkt*>(this)->getAttackKind();}
+    virtual void setAttackKind(const Attack_t& attackKind);
 };
 
 inline void doPacking(cCommBuffer *b, IDSVotingResponsePkt& obj) {obj.parsimPack(b);}

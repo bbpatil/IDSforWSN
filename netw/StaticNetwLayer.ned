@@ -28,6 +28,7 @@ simple StaticNetwLayer extends BaseNetwLayer
         int nextHopAddr = default(-1);
         bool readFromFile = default(true);
         double pPacketDropping = default(0.0);
+        // Used for delay attack
         double fwdPacketWait @unit(s) = default(0s);
                 
     	@class(StaticNetwLayer);

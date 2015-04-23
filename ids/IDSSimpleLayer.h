@@ -48,12 +48,14 @@ struct IDSEntry {
 
 	unsigned int packetsLastWindowReceived, packetsLastWindowForwarded;
 
-	unsigned int positiveResponses, negativeResponses;
+	unsigned int positiveDropperResponses, negativeDropperResponses;
+
+	unsigned int positiveDelayerResponses, negativeDelayerResponses;
 
 	// This is to make own claim about a node:
 	bool isDropperLocal, isDropperGlobal;
 
-	bool isWaitingForResponses;
+	bool isWaitingForDropperResponses;
 
 	// Values for delay dropper
 	unsigned int delayedPacketsLastWindow, notDelayedPacketsLastWindow;
@@ -65,12 +67,13 @@ struct IDSEntry {
 
 	IDSEntry(){
 		packetsReceived = packetsForwarded = packetsLastWindowReceived = packetsLastWindowForwarded = lastCreationTime = lastSrcAddr = 0;
-		positiveResponses = negativeResponses = 0;
+		positiveDropperResponses = negativeDropperResponses = 0;
 		isDropperLocal = isDropperGlobal = false;
-		isWaitingForResponses = false;
+		isWaitingForDropperResponses = false;
 		delayedPacketsLastWindow = notDelayedPacketsLastWindow = 0;
 		isDelayerLocal = isDelayerGlobal = false;
 		isWaitingForDelayResponses = false;
+		positiveDelayerResponses = negativeDelayerResponses = 0;
 	}
 	double getPacketsDroppedRatio(){
 		return packetsReceived>0?(packetsReceived-packetsForwarded)/(double)packetsReceived:0;
@@ -113,14 +116,16 @@ struct FwdEntry {
 struct ResponseEntry {
     int srcAddr;
     int suspiciousAddr;
+    Attack_t attackKind;
 
     ResponseEntry(){
         srcAddr = suspiciousAddr = 0;
     }
 
-    ResponseEntry(int x, int y){
+    ResponseEntry(int x, int y, Attack_t z){
         srcAddr = x;
         suspiciousAddr = y;
+        attackKind = z;
     }
 };
 
@@ -147,6 +152,8 @@ typedef struct _IDSStats {
 	}
 } IDSStats;
 
+class IDSVotingPkt;
+class IDSVotingResponsePkt;
 
 class IDSSimpleLayer : public IDSLayer {
 
@@ -154,8 +161,8 @@ protected:
 
     enum messagesTypes {
         IDS_WINDOW_TIMER=0,
-        IDS_RESPONSES_COLLECTION_TIMER=1,
-        IDS_DELAY_RESPONSES_COLLECTION_TIMER=2
+        IDS_DROPPER_RESPONSES_COLLECTION_TIMER=1,
+        IDS_DELAYER_RESPONSES_COLLECTION_TIMER=2
     };
 
 	bool evaluated;
@@ -195,7 +202,8 @@ public:
 	void votingResponse(IDSVotingPkt* idsPkt);
 	void recordResponse(IDSVotingResponsePkt* idsResponsePkt);
 	void responseVotingRequests();
-	void evaluateResponses(int nodeID);
+	void evaluateDropperResponses(int nodeID);
+	void evaluateDelayerResponses(int nodeID);
 	void checkBufferForDelays();
 
 	IDSStats forwardersStats;
@@ -212,6 +220,7 @@ public:
 	unsigned int collectingTime;
 
 	// New parameters:
+	bool enabledDropperDetection;
 	unsigned int windowSize;
 	unsigned int minVotesReceived;
 	double votingThreshold;
@@ -224,6 +233,12 @@ public:
     double delayThreshold;
     // P10: Size of a time window to evaluate delays -> not used now
     // double delayWindowSize;
+
+//    typedef enum Attack {
+//        DROPPER=0,
+//        DELAYER=1
+//    } Attack_t;
+//    typedef int Attack_t;
 
 };
 

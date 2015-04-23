@@ -159,12 +159,18 @@ void SimHelper::writeMetrics() {
     ofstream ofstr (par("idsMetricsFile"));
     ofstr.precision(10);
 
-    map<unsigned int, bool> isAttacker;
-    map<unsigned int, unsigned int> detectedAsAttacker;
-    map<unsigned int, unsigned int> detectedAsNonAttacker;
+    map<unsigned int, bool> isDropper;
+    map<unsigned int, unsigned int> detectedAsDropper;
+    map<unsigned int, unsigned int> detectedAsNonDropper;
     map<unsigned int, unsigned int> hasNeighbors;
-    unsigned int numAttackers = 0;
+    unsigned int numDroppers = 0;
     double mem = 0;
+
+    map<unsigned int, bool> isDelayer;
+    map<unsigned int, unsigned int> detectedAsDelayer;
+    map<unsigned int, unsigned int> detectedAsNonDelayer;
+    unsigned int numDelayers = 0;
+
 
     // Get all attackers and stats
     unsigned int nodeID = 0;
@@ -174,9 +180,13 @@ void SimHelper::writeMetrics() {
         netw = node!=NULL?FindModule<StaticNetwLayer*>::findSubModule(node):NULL;
 
         if (netw != NULL){
-            isAttacker[nodeID] = netw->pPacketDropping>0;
-            if (isAttacker[nodeID])
-                numAttackers++;
+            isDropper[nodeID] = netw->pPacketDropping>0;
+            if (isDropper[nodeID])
+                numDroppers++;
+
+            isDelayer[nodeID] = netw->fwdPacketWait>0;
+            if (isDelayer[nodeID])
+                numDelayers++;
         }
 
         if (ids != NULL && netw != NULL) {
@@ -187,10 +197,16 @@ void SimHelper::writeMetrics() {
 
 
                 // update detection stats
-                if (entry->isDropperGlobal){
-                    detectedAsAttacker[nodeAddr]++;
+                if (entry->isDropperGlobal) {
+                    detectedAsDropper[nodeAddr]++;
                 } else {
-                    detectedAsNonAttacker[nodeAddr]++;
+                    detectedAsNonDropper[nodeAddr]++;
+                }
+
+                if (entry->isDelayerGlobal) {
+                    detectedAsDelayer[nodeAddr]++;
+                } else {
+                    detectedAsNonDelayer[nodeAddr]++;
                 }
             }
 
@@ -212,33 +228,51 @@ void SimHelper::writeMetrics() {
         double fn = 0;
         double fp = 0;
 
-        // TODO: Tady dopocitavat ty statistiky dle paperu a zapsat je do souboru !!!
         for (unsigned int i = 0; i < nodeID; i++) {
-//            ofstr << "Node " << i << " is attacker: " << isAttacker[i] << endl;
-//            ofstr << "Number of nodes detecting " << i << " as attacker: " << detectedAsAttacker[i] << endl;
-//            ofstr << "Number of nodes detecting " << i << " as benign: " << detectedAsNonAttacker[i] << endl;
 
-            // TODO: What should we do with nodes that were not detected at all?
-            if ( ( detectedAsAttacker[i] + detectedAsNonAttacker[i] ) > 0 ) {
-                if (isAttacker[i]) {
-                    fn = fn + ((double)(hasNeighbors[i] - detectedAsAttacker[i]) / hasNeighbors[i]);
-                } else {
-                    fp = fp + ((double)detectedAsAttacker[i] / hasNeighbors[i]);
+            if (ids->par("enabledDropperDetection")) {
+                if ( ( detectedAsDropper[i] + detectedAsNonDropper[i] ) > 0 ) {
+                    if (isDropper[i]) {
+                        fn = fn + ((double)(hasNeighbors[i] - detectedAsDropper[i]) / hasNeighbors[i]);
+                    } else {
+                        fp = fp + ((double)detectedAsDropper[i] / hasNeighbors[i]);
+                    }
+                }
+            } else if (ids->par("enabledDelayDetection")) {
+                if ( ( detectedAsDelayer[i] + detectedAsNonDelayer[i] ) > 0 ) {
+                    if (isDelayer[i]) {
+                        fn = fn + ((double)(hasNeighbors[i] - detectedAsDelayer[i]) / hasNeighbors[i]);
+                    } else {
+                        fp = fp + ((double)detectedAsDelayer[i] / hasNeighbors[i]);
+                    }
                 }
             }
 
         }
 
-        if (numAttackers > 0) {
-            fn = (double)fn / numAttackers;
-        } else {
-            fn = 0;
-        }
+        if (ids->par("enabledDropperDetection") ) {
+            if (numDroppers > 0) {
+                fn = (double)fn / numDroppers;
+            } else {
+                fn = 0;
+            }
 
-        if (nodeID - numAttackers > 0)
-            fp = (double)fp / (nodeID - numAttackers);
-        else
-            fp = 0;
+            if (nodeID - numDroppers > 0)
+                fp = (double)fp / (nodeID - numDroppers);
+            else
+                fp = 0;
+        } else if (ids->par("enabledDelayDetection") ) {
+            if (numDelayers > 0) {
+                fn = (double)fn / numDelayers;
+            } else {
+                fn = 0;
+            }
+
+            if (nodeID - numDelayers > 0)
+                fp = (double)fp / (nodeID - numDelayers);
+            else
+                fp = 0;
+        }
 
         if (nodeID > 0)
             mem = mem / (double)nodeID;
@@ -262,12 +296,12 @@ void SimHelper::writeMetrics() {
         ofstr << "FP = " << fp << endl;
         ofstr << "MEM = " << mem << endl;
         for (int i = 0; i <= nodeID; i++) {
-            if (isAttacker[i]) {
-                ofstr << i << " TrueAttacker = " << detectedAsAttacker[i] << endl;
-                ofstr << i << " FalseNonAttacker = " << detectedAsNonAttacker[i] << endl;
+            if (isDropper[i]) {
+                ofstr << i << " TrueAttacker = " << detectedAsDropper[i] << endl;
+                ofstr << i << " FalseNonAttacker = " << detectedAsNonDropper[i] << endl;
             } else {
-                ofstr << i << " FalseAttacker = " << detectedAsAttacker[i] << endl;
-                ofstr << i << " TrueNonAttacker = " << detectedAsNonAttacker[i] << endl;
+                ofstr << i << " FalseAttacker = " << detectedAsDropper[i] << endl;
+                ofstr << i << " TrueNonAttacker = " << detectedAsNonDropper[i] << endl;
             }
         }
 

@@ -43,7 +43,7 @@ simple IDSSimpleLayer extends IDSLayer {
         
         // Parameters for cooperative IDS evaluating in time windows
         
-        bool enabledDropperDetection = default(True);
+        bool enabledDropperDetection = default(true);
         
         // P5: time window size - how often the dropping is evaluated
         int windowSize @unit(s) = default(30s);
@@ -58,7 +58,7 @@ simple IDSSimpleLayer extends IDSLayer {
         
         // Parameters for additional delay detection
         
-        bool enabledDelayDetection = default(False);
+        bool enabledDelayDetection = default(false);
         
         // P8: how long time a packet has to be delayed to be marked as "delayed"
         double delayTime @unit(s) = default(5s);

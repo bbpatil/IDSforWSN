@@ -159,6 +159,9 @@ void SimHelper::writeMetrics() {
     ofstream ofstr (par("idsMetricsFile"));
     ofstr.precision(10);
 
+    bool enabledDropperDetection = false;
+    bool enabledDelayerDetection = false;
+
     map<unsigned int, bool> isDropper;
     map<unsigned int, unsigned int> detectedAsDropper;
     map<unsigned int, unsigned int> detectedAsNonDropper;
@@ -170,6 +173,8 @@ void SimHelper::writeMetrics() {
     map<unsigned int, unsigned int> detectedAsDelayer;
     map<unsigned int, unsigned int> detectedAsNonDelayer;
     unsigned int numDelayers = 0;
+
+    debugEV << "Writing metrics" << endl;
 
 
     // Get all attackers and stats
@@ -189,7 +194,14 @@ void SimHelper::writeMetrics() {
                 numDelayers++;
         }
 
+        debugEV << "Droppers: " << numDroppers << endl;
+        debugEV << "Delayers: " << numDelayers << endl;
+
         if (ids != NULL && netw != NULL) {
+            // Here we take the operation mode of an IDS. Note: final decision is based on the last node evaluated here!!!!!
+            enabledDropperDetection = (bool)(ids->par("enabledDropperDetection"));
+            enabledDelayerDetection = (bool)(ids->par("enabledDelayDetection"));
+
             for (IDSMap::iterator it=ids->forwardersMap.begin();it!=ids->forwardersMap.end();it++){
 
                 IDSEntry* entry = &(it->second);
@@ -214,6 +226,7 @@ void SimHelper::writeMetrics() {
             mem = mem + ( (8 * (int)(ids->par("maxMonitoredNodes"))) + (16 * (int)(ids->par("fwdBufferSize"))) );
             // Add neigh count
             hasNeighbors[nodeID] = ids->neighborsSet.size();
+            debugEV << nodeID << " has " << hasNeighbors[nodeID] << " neighbors." << endl;
         }
 
         nodeID++;
@@ -222,6 +235,8 @@ void SimHelper::writeMetrics() {
     // For having a correct number of nodes:
     nodeID--;
 
+    debugEV << "Dropper detection: " << enabledDropperDetection << endl;
+    debugEV << "Delayer detection: " << enabledDelayerDetection << endl;
 
     if (ofstr.is_open()){
 
@@ -230,7 +245,7 @@ void SimHelper::writeMetrics() {
 
         for (unsigned int i = 0; i < nodeID; i++) {
 
-            if (ids->par("enabledDropperDetection")) {
+            if (enabledDropperDetection) {
                 if ( ( detectedAsDropper[i] + detectedAsNonDropper[i] ) > 0 ) {
                     if (isDropper[i]) {
                         fn = fn + ((double)(hasNeighbors[i] - detectedAsDropper[i]) / hasNeighbors[i]);
@@ -238,7 +253,8 @@ void SimHelper::writeMetrics() {
                         fp = fp + ((double)detectedAsDropper[i] / hasNeighbors[i]);
                     }
                 }
-            } else if (ids->par("enabledDelayDetection")) {
+
+            } else if (enabledDelayerDetection) {
                 if ( ( detectedAsDelayer[i] + detectedAsNonDelayer[i] ) > 0 ) {
                     if (isDelayer[i]) {
                         fn = fn + ((double)(hasNeighbors[i] - detectedAsDelayer[i]) / hasNeighbors[i]);
@@ -250,7 +266,9 @@ void SimHelper::writeMetrics() {
 
         }
 
-        if (ids->par("enabledDropperDetection") ) {
+
+
+        if (enabledDropperDetection) {
             if (numDroppers > 0) {
                 fn = (double)fn / numDroppers;
             } else {
@@ -261,7 +279,7 @@ void SimHelper::writeMetrics() {
                 fp = (double)fp / (nodeID - numDroppers);
             else
                 fp = 0;
-        } else if (ids->par("enabledDelayDetection") ) {
+        } else if (enabledDelayerDetection) {
             if (numDelayers > 0) {
                 fn = (double)fn / numDelayers;
             } else {
@@ -295,13 +313,26 @@ void SimHelper::writeMetrics() {
         ofstr << "FN = " << fn << endl;
         ofstr << "FP = " << fp << endl;
         ofstr << "MEM = " << mem << endl;
-        for (int i = 0; i <= nodeID; i++) {
-            if (isDropper[i]) {
-                ofstr << i << " TrueAttacker = " << detectedAsDropper[i] << endl;
-                ofstr << i << " FalseNonAttacker = " << detectedAsNonDropper[i] << endl;
-            } else {
-                ofstr << i << " FalseAttacker = " << detectedAsDropper[i] << endl;
-                ofstr << i << " TrueNonAttacker = " << detectedAsNonDropper[i] << endl;
+        if (enabledDropperDetection) {
+            for (int i = 0; i <= nodeID; i++) {
+                if (isDropper[i]) {
+                    ofstr << i << " TrueDropper = " << detectedAsDropper[i] << endl;
+                    ofstr << i << " FalseNonDropper = " << detectedAsNonDropper[i] << endl;
+                } else {
+                    ofstr << i << " FalseDropper = " << detectedAsDropper[i] << endl;
+                    ofstr << i << " TrueNonDropper = " << detectedAsNonDropper[i] << endl;
+                }
+            }
+        }
+        if (enabledDelayerDetection) {
+            for (int i = 0; i <= nodeID; i++) {
+                if (isDelayer[i]) {
+                    ofstr << i << " TrueDelayer = " << detectedAsDropper[i] << endl;
+                    ofstr << i << " FalseNonDelayer = " << detectedAsNonDropper[i] << endl;
+                } else {
+                    ofstr << i << " FalseDelayer = " << detectedAsDropper[i] << endl;
+                    ofstr << i << " TrueNonDelayer = " << detectedAsNonDropper[i] << endl;
+                }
             }
         }
 

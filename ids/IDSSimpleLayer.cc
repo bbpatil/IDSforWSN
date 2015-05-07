@@ -170,6 +170,7 @@ void IDSSimpleLayer::handleLowerMsg(cMessage *msg){
  * Handle messages from itself - here, the time windows are managed
  */
 void IDSSimpleLayer::handleSelfMsg(cMessage *msg) {
+    debugEV << "Handling self message" << endl;
     if (msg->getKind() == IDS_WINDOW_TIMER) {
         debugEV << "New window is being started...." << endl;
         debugEV << msg->getName() << endl;
@@ -292,11 +293,11 @@ void IDSSimpleLayer::analyseNetwPkt(StaticNetwPkt* netwPkt){
 						if (enabledDelayDetection) {
 						    // Check whether this packet was sent in time
 						    // If already marked as delayed, it was already once counted at the window evaluation
-						    if (entry->delayTime > simTime() && not (entry->markedAsDelayed)) {
+						    if (entry->delayTime < simTime() && not (entry->markedAsDelayed)) {
 						        // Packet was not sent before deadline
 						        forwardersMap[netwPkt->getSrcAddr()].delayedPacketsLastWindow++;
 						    } else if (not (entry->markedAsDelayed)) {
-						        // Packet was sent before deadlnie
+						        // Packet was sent before deadline
 						        forwardersMap[netwPkt->getSrcAddr()].notDelayedPacketsLastWindow++;
 						    }
 						}
@@ -367,6 +368,9 @@ void IDSSimpleLayer::analyseNetwPkt(StaticNetwPkt* netwPkt){
 					fwdEntry.creationTime = netwPkt->getCreationTime().raw();
 					// To detect delay attack:
 					fwdEntry.delayTime = simTime() + SimTime(delayTime);
+					debugEV << "Creation time is " << netwPkt->getCreationTime().raw() << endl;
+					debugEV << "Sim time is " << simTime() << endl;
+					debugEV << "Sim time + delay is " << simTime() + SimTime(delayTime) << endl;
 					fwdBuffer.push_back(fwdEntry);
 
 					// increment PR
@@ -439,6 +443,12 @@ void IDSSimpleLayer::doEvaluation(){
         ss1 << "neigh"<<nodeAddr<< "DropGlob";
             recordScalar(ss1.str().c_str(),entry->isDropperGlobal);
         ss1.str("");
+        ss1 << "neigh"<<nodeAddr<< "DelayLoc";
+            recordScalar(ss1.str().c_str(),entry->isDelayerLocal);
+        ss1.str("");
+        ss1 << "neigh"<<nodeAddr<< "DelayGlob";
+            recordScalar(ss1.str().c_str(),entry->isDelayerGlobal);
+        ss1.str("");
 		// get node
         if (fullStats) {
             node = network->getSubmodule("node", nodeAddr);
@@ -462,8 +472,11 @@ void IDSSimpleLayer::doEvaluation(){
  */
 void IDSSimpleLayer::evaluateLastWindow() {
 
+    debugEV << "Evaluating last window." << endl;
+
     // Our window is over -> response to pending requests
     responseVotingRequests();
+
 
     // If delay attack is evaluated, check all the packets in the buffer whether they are delayed or not
     if (enabledDelayDetection) {
@@ -476,12 +489,12 @@ void IDSSimpleLayer::evaluateLastWindow() {
     for (IDSMap::iterator i=forwardersMap.begin();i!=forwardersMap.end();i++){
         IDSEntry* entry = &(i->second);
         const int nodeAddr = i->first;
-        debugEV << "Node " << nodeAddr << " received " << entry->packetsLastWindowReceived << " and forwarded " << entry->packetsLastWindowForwarded << " packets." << endl;
-        debugEV << "Node " << nodeAddr << " is locally considered dropper: " << entry->isDropperLocal << endl;
-        debugEV << "Node " << nodeAddr << " is globally considered dropper: " << entry->isDropperGlobal << endl;
 
         // If dropping over the last window was higher than threshold, start voting scheme:
         if (enabledDropperDetection) {
+            debugEV << "Node " << nodeAddr << " received " << entry->packetsLastWindowReceived << " and forwarded " << entry->packetsLastWindowForwarded << " packets." << endl;
+            debugEV << "Node " << nodeAddr << " is locally considered dropper: " << entry->isDropperLocal << endl;
+            debugEV << "Node " << nodeAddr << " is globally considered dropper: " << entry->isDropperGlobal << endl;
             if (entry->getPacketsLastWindowDroppedRatio() > fwdDetectionThreshold) {
                 debugEV << "Node " << nodeAddr << " dropped " << entry->getPacketsLastWindowDroppedRatio()*100 <<
                         " % packets. There is an assumption that it is a dropper => voting scheme?" << endl;
@@ -499,16 +512,19 @@ void IDSSimpleLayer::evaluateLastWindow() {
 
         // If delay attack detection is enabled, evaluate the ratio of delayed packets
         if (enabledDelayDetection) {
-            if (entry->getDelayLastWindowDroppedRatio() > delayThreshold) {
-                debugEV << "Node " << nodeAddr << " delayed " << entry->getDelayLastWindowDroppedRatio()*100 <<
+            debugEV << "Node " << nodeAddr << " delayed " << entry->delayedPacketsLastWindow << " and not delayed " << entry->notDelayedPacketsLastWindow << " packets." << endl;
+            debugEV << "Node " << nodeAddr << " is locally considered delayer: " << entry->isDelayerLocal << endl;
+            debugEV << "Node " << nodeAddr << " is globally considered delayer: " << entry->isDelayerGlobal << endl;
+            if (entry->getPacketsLastWindowDelayedRatio() > delayThreshold) {
+                debugEV << "Node " << nodeAddr << " delayed " << entry->getPacketsLastWindowDelayedRatio()*100 <<
                         " % packets. There is an assumption that it is a delayer => voting scheme?" << endl;
                 // Since now we locally assume this node as delayer:
                 entry->isDelayerLocal = true;
                 if (!entry->isDelayerGlobal) {
-                    debugEV << "Node is not globally decided as dropper yet. Voting." << endl;
+                    debugEV << "Node is not globally decided as delayer yet. Voting." << endl;
                     askNeighborsForDelay(nodeAddr);
                 } else {
-                    debugEV << "Node is already globally decided as dropper. No voting." << endl;
+                    debugEV << "Node is already globally decided as delayer. No voting." << endl;
                 }
                 // TODO
             }
@@ -696,7 +712,7 @@ void IDSSimpleLayer::evaluateDropperResponses(int nodeID) {
         return;
     }
 
-    if ( ( ( forwardersMap[nodeID].positiveDropperResponses /
+    if ( ( ( (double)forwardersMap[nodeID].positiveDropperResponses /
         (forwardersMap[nodeID].positiveDropperResponses + forwardersMap[nodeID].negativeDropperResponses) ) >
         votingThreshold ) && ( (forwardersMap[nodeID].positiveDropperResponses + forwardersMap[nodeID].negativeDropperResponses) >= minVotesReceived) ) {
         debugEV << "Since the ratio of positive responses is higher than threshold and we received enough responses, the node " << nodeID << " will be considered dropper globally" << endl;
@@ -728,7 +744,7 @@ void IDSSimpleLayer::evaluateDelayerResponses(int nodeID) {
         return;
     }
 
-    if ( ( ( forwardersMap[nodeID].positiveDelayerResponses /
+    if ( ( ( (double)forwardersMap[nodeID].positiveDelayerResponses /
         (forwardersMap[nodeID].positiveDelayerResponses + forwardersMap[nodeID].negativeDelayerResponses) ) >
         votingThreshold ) && ( (forwardersMap[nodeID].positiveDelayerResponses + forwardersMap[nodeID].negativeDelayerResponses) >= minVotesReceived) ) {
         debugEV << "Since the ratio of positive responses is higher than threshold and we received enough responses, the node " << nodeID << " will be considered delayer globally" << endl;
@@ -747,12 +763,12 @@ void IDSSimpleLayer::evaluateDelayerResponses(int nodeID) {
  */
 void IDSSimpleLayer::checkBufferForDelays() {
     // check delays and mark delayed packets as checked
-    for(FwdBuffer::iterator entry=fwdBuffer.begin(); entry!=fwdBuffer.end(); ){
-        if (simTime() >= entry->delayTime){
-            debugEV << "Packet is delayed (" << entry->srcAddr << "->" << entry->destAddr << ")" << endl;
+    for(FwdBuffer::iterator entry=fwdBuffer.begin(); entry!=fwdBuffer.end(); entry++){
+        if (simTime() >= entry->delayTime && not (entry->markedAsDelayed)){
+            debugEV << "Packet is delayed (" << entry->srcAddr << "->" << entry->nodeAddr << ")" << endl;
             debugEV << "SimTime=" << simTime() << ", delay time=" << entry->delayTime << endl;
             // TODO: overit, ze v nasledujicim ma fakt byt "destAddr"
-            forwardersMap[entry->destAddr].delayedPacketsLastWindow++;
+            forwardersMap[entry->nodeAddr].delayedPacketsLastWindow++;
             entry->markedAsDelayed = true;
 
         }

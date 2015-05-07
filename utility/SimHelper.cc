@@ -217,6 +217,7 @@ void SimHelper::writeMetrics() {
 
                 if (entry->isDelayerGlobal) {
                     detectedAsDelayer[nodeAddr]++;
+                    debugEV << nodeAddr << " detected as delayer." << endl;
                 } else {
                     detectedAsNonDelayer[nodeAddr]++;
                 }
@@ -327,11 +328,11 @@ void SimHelper::writeMetrics() {
         if (enabledDelayerDetection) {
             for (int i = 0; i <= nodeID; i++) {
                 if (isDelayer[i]) {
-                    ofstr << i << " TrueDelayer = " << detectedAsDropper[i] << endl;
-                    ofstr << i << " FalseNonDelayer = " << detectedAsNonDropper[i] << endl;
+                    ofstr << i << " TrueDelayer = " << detectedAsDelayer[i] << endl;
+                    ofstr << i << " FalseNonDelayer = " << detectedAsNonDelayer[i] << endl;
                 } else {
-                    ofstr << i << " FalseDelayer = " << detectedAsDropper[i] << endl;
-                    ofstr << i << " TrueNonDelayer = " << detectedAsNonDropper[i] << endl;
+                    ofstr << i << " FalseDelayer = " << detectedAsDelayer[i] << endl;
+                    ofstr << i << " TrueNonDelayer = " << detectedAsNonDelayer[i] << endl;
                 }
             }
         }

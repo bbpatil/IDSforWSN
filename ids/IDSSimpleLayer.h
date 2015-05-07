@@ -83,8 +83,8 @@ struct IDSEntry {
         return packetsLastWindowReceived>0?(packetsLastWindowReceived-packetsLastWindowForwarded)/(double)packetsLastWindowReceived:0;
     }
 
-    double getDelayLastWindowDroppedRatio(){
-        return packetsLastWindowReceived>0?(delayedPacketsLastWindow)/(double)(delayedPacketsLastWindow+notDelayedPacketsLastWindow):0;
+    double getPacketsLastWindowDelayedRatio(){
+        return (delayedPacketsLastWindow+notDelayedPacketsLastWindow)>0?(delayedPacketsLastWindow)/(double)(delayedPacketsLastWindow+notDelayedPacketsLastWindow):0;
     }
 };
 typedef std::map<int, IDSEntry> IDSMap;
